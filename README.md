@@ -8,9 +8,9 @@
 
 ```bash
 git lfs install
-git clone https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git NPUSim_Demo_Distribution
+GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git NPUSim_Demo_Distribution
 cd NPUSim_Demo_Distribution
-git lfs pull
+git -c lfs.forceprogress=true lfs pull
 sha256sum -c NPUSim_Prof_Live_Demo.tar.gz.sha256
 ```
 

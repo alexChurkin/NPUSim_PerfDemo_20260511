@@ -11,11 +11,17 @@ sudo apt-get install git-lfs
 
 ```bash
 git lfs install
-git clone https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git NPUSim_Demo_Distribution
+GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git NPUSim_Demo_Distribution
 cd NPUSim_Demo_Distribution
-git lfs pull
+git -c lfs.forceprogress=true lfs pull
 sha256sum -c NPUSim_Prof_Live_Demo.tar.gz.sha256
 ```
+
+`GIT_LFS_SKIP_SMUDGE=1` отключает автоматическое скачивание архива при клонировании.
+Оно выполняется отдельной командой `git lfs pull` с видимым прогрессом.
+Если обычный clone остановился на последней строке `Resolving deltas: 100%`, он может
+уже скачивать LFS-архив во время checkout. Можно прервать Ctrl+C и повторить команды
+выше в новом каталоге; старый каталог удалять не требуется.
 
 Нужен настоящий архив (~483 МиБ), а не маленький текстовый LFS-указатель.
 Проверка SHA-256 должна завершиться сообщением OK.
