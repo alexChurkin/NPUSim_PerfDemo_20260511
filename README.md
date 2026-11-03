@@ -4,11 +4,11 @@
 Архив хранится в **Git LFS**. Внутри: npu-simulator, cann-samples, NumPy wheels,
 сборка без сети, интерактивное меню и готовые профили.
 
-На машине с доступом к GitCode, где установлены Git и Git LFS:
+На машине с доступом к GitHub, где установлены Git и Git LFS:
 
 ```bash
 git lfs install
-git clone https://gitcode.com/churkinaleksandr/NPUSim_Prof_Live_Demo.git NPUSim_Demo_Distribution
+git clone https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git NPUSim_Demo_Distribution
 cd NPUSim_Demo_Distribution
 git lfs pull
 sha256sum -c NPUSim_Prof_Live_Demo.tar.gz.sha256
@@ -32,5 +32,5 @@ bash demo.sh
 Выбор вариантов без меню: `bash demo.sh 2 4 5`.
 Просмотр команд: `bash demo.sh --dry-run 2 4 5`.
 
-[Полный гайд по скачиванию и распаковке](GITCODE_LFS.md).
+[Полный гайд по скачиванию и распаковке](DOWNLOAD.md).
 [Сценарий показа, метрики и хинты](DEMO.md).
