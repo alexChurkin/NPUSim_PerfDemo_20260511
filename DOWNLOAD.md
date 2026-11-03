@@ -1,13 +1,15 @@
-# Скачать, перенести, распаковать и запустить
+# Download, transfer, extract, and run
 
-## На машине с доступом к GitHub
+## Download on a machine with GitHub access
 
-Нужны Git и Git LFS. Git LFS должен быть установлен до скачивания архива.
-Например, на Ubuntu на машине с интернетом:
+Install Git and Git LFS before downloading the archive. For example, on Ubuntu
+with access to package repositories:
 
 ```bash
 sudo apt-get install git-lfs
 ```
+
+Clone the small Git repository first, then download the archive with visible progress:
 
 ```bash
 git lfs install
@@ -17,26 +19,30 @@ git -c lfs.forceprogress=true lfs pull
 sha256sum -c NPUSim_Prof_Live_Demo.tar.gz.sha256
 ```
 
-`GIT_LFS_SKIP_SMUDGE=1` отключает автоматическое скачивание архива при клонировании.
-Оно выполняется отдельной командой `git lfs pull` с видимым прогрессом.
-Если обычный clone остановился на последней строке `Resolving deltas: 100%`, он может
-уже скачивать LFS-архив во время checkout. Можно прервать Ctrl+C и повторить команды
-выше в новом каталоге; старый каталог удалять не требуется.
+`GIT_LFS_SKIP_SMUDGE=1` disables automatic archive downloads during cloning.
+The separate `git lfs pull` step displays download progress.
+If an ordinary clone appears stuck after `Resolving deltas: 100%`, it may already
+be downloading the LFS archive during checkout. Press Ctrl+C and repeat the commands
+above using a new directory; the old directory does not need to be deleted.
 
-Нужен настоящий архив (~483 МиБ), а не маленький текстовый LFS-указатель.
-Проверка SHA-256 должна завершиться сообщением OK.
+You need the actual archive (approximately 483 MiB), rather than a small text LFS pointer.
+Checksum verification must print `NPUSim_Prof_Live_Demo.tar.gz: OK`.
 
-## На офлайн-машине
+## Transfer to the offline machine
 
-Перенесите два файла любым доступным способом:
+Transfer these two files using scp, a USB drive, or an internal file share:
 
-- NPUSim_Prof_Live_Demo.tar.gz
-- NPUSim_Prof_Live_Demo.tar.gz.sha256
+- `NPUSim_Prof_Live_Demo.tar.gz`
+- `NPUSim_Prof_Live_Demo.tar.gz.sha256`
 
-Git, Git LFS и интернет на офлайн-машине не требуются. Нужны такой же CANN,
-Linux x86_64, Python 3.9–3.12 с pip, CMake, make и cc.
+The offline machine does not need Git, Git LFS, or Internet access.
+It needs the same CANN installation, Linux x86_64, Python 3.9–3.12 with pip,
+CMake, make, and cc. NumPy wheels and both source repositories are included.
 
-В новом пустом каталоге с этими файлами:
+## Verify, extract, and launch
+
+Use a new empty directory when extracting an updated version, so it does not mix
+with an older build or results. In the directory containing the transferred files:
 
 ```bash
 sha256sum -c NPUSim_Prof_Live_Demo.tar.gz.sha256
@@ -46,40 +52,40 @@ export CANN_SETENV=/actual/path/to/cann/bin/setenv.bash
 bash demo.sh
 ```
 
-В меню введите номера вариантов через пробел, например 2 4 5.
-Команда p 2 4 показывает точные команды без симуляции; q закрывает меню.
-Если нужна сборка, она выполнится автоматически без интернета.
+Enter variant numbers separated by spaces, for example `2 4 5`.
+Use `p 2 4` to preview commands without simulation, or `q` to exit.
+The launcher installs NumPy from local wheels and builds offline when needed.
 
-Полный автоматический прогон 1 → 2 → 4 → 5 → 6:
+To build and run the complete sequence 1 → 2 → 4 → 5 → 6:
 
 ```bash
 bash start.sh
 ```
 
-Выбор вариантов без меню:
+To run selected variants without the menu:
 
 ```bash
 bash demo.sh 2 4 5
 ```
 
-Внутри архива уже есть оба репозитория, NumPy wheels, скрипты и готовые профили.
-Порядок показа, метрики, хинты и ограничения описаны в DEMO.md.
+Recorded profiles are already included in the full archive. New profiles go to `results/`,
+and commands and console logs go to `logs/`. See [DEMO.md](DEMO.md) for the presentation
+order, measured results, hints, and known profiling limitations.
 
-## Если перенос большого файла неудобен
+## Transfer the archive in smaller parts
 
-На машине с архивом можно разбить его на части:
+On the machine containing the archive:
 
 ```bash
 split -b 100M -d -a 2 NPUSim_Prof_Live_Demo.tar.gz NPUSim_Prof_Live_Demo.tar.gz.part-
 ```
 
-Перенесите все части вместе с исходным файлом .sha256.
-На целевой машине соберите и проверьте архив:
+Transfer all parts together with the original `.sha256` file. Reassemble and verify:
 
 ```bash
 cat NPUSim_Prof_Live_Demo.tar.gz.part-* > NPUSim_Prof_Live_Demo.tar.gz
 sha256sum -c NPUSim_Prof_Live_Demo.tar.gz.sha256
 ```
 
-После этого используйте команды распаковки выше. Отдельно скачивать и вручную
-раскладывать исходники и зависимости не требуется.
+Then use the extraction commands above. Sources and dependencies do not need
+to be downloaded and arranged individually.

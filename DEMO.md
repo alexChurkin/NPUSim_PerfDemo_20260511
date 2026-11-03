@@ -1,25 +1,32 @@
-# Демонстрация BiProf: RmsNormQuant на NPU Simulator
+# BiProf demo: RmsNormQuant on NPU Simulator
 
-Все пути ниже настраиваются. Команды выполняются в Bash. Рабочая папка демо — папка с этим файлом.
-Примеры: `cann-samples/Samples/2_Performance/rms_norm_quant_story/src/0_naive.asc` … `6_binary_sum.asc`.
+Run these commands in Bash from the directory containing this guide.
+All installation and repository paths are configurable.
+The examples are `cann-samples/Samples/2_Performance/rms_norm_quant_story/src/0_naive.asc`
+through `6_binary_sum.asc`.
 
-## 1. Подготовка и перенос
+## 1. Requirements and transfer
 
-Получение архива из GitCode LFS и команды распаковки: [GITCODE_LFS.md](GITCODE_LFS.md).
+See [DOWNLOAD.md](DOWNLOAD.md) for GitHub LFS downloads, checksum verification,
+archive extraction, and offline transfer.
 
-Нужны Linux, совместимый CANN с поддержкой Ascend950/dav-3510 и его timing simulator,
-Python 3.9–3.12 с pip, CMake, make, C/C++ компилятор для служебной библиотеки и исходники обоих репозиториев.
-Физическая NPU для этих запусков не нужна. Python-код симулятора и `libcannsim_helper.so` из CANN должны
-иметь совпадающие версии и контракт данных (эта версия требует contract_version=7).
+The target needs Linux x86_64, the same CANN 9.3.0 installation with Ascend950/dav-3510
+timing simulator support, Python 3.9–3.12 with pip, CMake, make, and a C/C++ compiler
+for the runtime helper. Physical NPU hardware is not required.
+The simulator Python code and CANN's `libcannsim_helper.so` must have matching versions
+and data contracts; this checkout requires `contract_version=7`.
 
-Перенести **весь каталог `NPUSim_Prof_Live_Demo`**: оба репозитория, `wheelhouse/`, `demo/`,
-`patches/`, документацию и готовые результаты. Удобнее использовать архив из README.
-В комплект уже включены полные исходники обоих репозиториев. `build/` на другую машину переносить не нужно:
-там абсолютные пути CMake и библиотеки текущего CANN. Если он всё же перенесён,
-`build.sh` автоматически сохранит его как `build.previous.*` и пересоберёт демо.
+Transfer the entire `NPUSim_Prof_Live_Demo` directory, including both repositories,
+`wheelhouse/`, `demo/`, `patches/`, documentation, and recorded results.
+Using the distribution archive is the easiest way to do this.
+The `build/` directory contains absolute paths and is excluded from the archive.
+If a build directory is transferred anyway, the launcher preserves a stale build
+as `build.previous.*` and rebuilds at the new location.
+
+Optional explicit path configuration:
 
 ```bash
-cd /path/to/BiProf_PerfDemo
+cd /path/to/NPUSim_Prof_Live_Demo
 export DEMO_ROOT="$PWD"
 export SAMPLES_DIR=/path/to/cann-samples
 export SIMULATOR_DIR=/path/to/npu-simulator
@@ -28,22 +35,22 @@ export BUILD_DIR="$DEMO_ROOT/build"
 export RESULTS_DIR="$DEMO_ROOT/results"
 ```
 
-Если используется исходный checkout cann-samples без наших изменений, применить патч **один раз**:
+The packaged samples are already modified. If using an original checkout instead,
+apply the transfer patch **once**:
 
 ```bash
 git -C "$SAMPLES_DIR" apply --check "$DEMO_ROOT/patches/rms-small-demo.patch"
 git -C "$SAMPLES_DIR" apply "$DEMO_ROOT/patches/rms-small-demo.patch"
 ```
 
-Если перенесён уже изменённый checkout, повторно применять патч не нужно.
-На другой ревизии сначала проверить `git apply --check`; при конфликте перенести изменения из патча вручную.
-Не использовать `--reject` или принудительную перезапись.
+Do not reapply it to an already modified checkout. For another revision, run
+`git apply --check` first and resolve incompatible changes manually.
 
-Настройка окружения (скрипты сборки/запуска также выполняют её сами):
+The launch scripts initialize this environment automatically:
 
 ```bash
 source "$DEMO_ROOT/demo/env.sh"
-# Внутри env.sh выполняется ровно такая инициализация CANN:
+# env.sh initializes CANN with:
 # source "$CANN_SETENV" .
 export CANNSIM_COLLECT=all
 export BIPROF_OPTS='-l debug --save_tmp_files --scalar-ipc --vec-ipc --simd-perf --memory-utilization'
@@ -51,21 +58,20 @@ python3 -c 'import npusim; print(npusim.__file__)'
 python3 -m npusim.main record --help
 ```
 
-Должен выводиться путь внутри выбранного `$SIMULATOR_DIR`.
-Установка wheel не обязательна: `PYTHONPATH` выбирает именно целевой checkout.
-Нельзя использовать `python3 -m npusim` — у пакета нет `__main__.py`.
-`start.sh` при необходимости устанавливает numpy локально из `wheelhouse/` с `--no-index`.
-Интернет не используется. Для x86_64 приложены wheels Python 3.9, 3.10, 3.11 и 3.12.
-Вручную: `python3 -m pip install --no-index --find-links wheelhouse --target python-deps/cp310 numpy==1.26.4`.
-CANN и системные инструменты в комплект не включены; использовать совместимый установленный CANN и зафиксированные ревизии из `versions.txt`.
+The printed module path must belong to the selected `$SIMULATOR_DIR` checkout.
+Installing a simulator wheel is unnecessary: `PYTHONPATH` selects the requested source.
+Use `python3 -m npusim.main`; the package has no `npusim.__main__` module.
+`start.sh` installs NumPy locally from `wheelhouse/` with `--no-index` when needed.
+Wheels for Python 3.9, 3.10, 3.11, and 3.12 on x86_64 are included.
+CANN and operating-system tools must already be installed. Tested revisions are in `versions.txt`.
 
-## 2. Сборка всех семи вариантов
+## 2. Build all seven variants
 
 ```bash
 bash "$DEMO_ROOT/demo/build.sh"
 ```
 
-Эквивалентные команды после `source demo/env.sh`:
+Equivalent commands after sourcing `demo/env.sh`:
 
 ```bash
 cmake -S "$DEMO_ROOT/demo" -B "$BUILD_DIR" -DSAMPLES_DIR="$SAMPLES_DIR" -DNPU_ARCH=dav-3510 \
@@ -73,52 +79,55 @@ cmake -S "$DEMO_ROOT/demo" -B "$BUILD_DIR" -DSAMPLES_DIR="$SAMPLES_DIR" -DNPU_AR
 cmake --build "$BUILD_DIR" --target rms_norm_quant_story -j 4
 ```
 
-Сборка использует `demo/CMakeLists.txt`, который подключает только RMSNorm из полного
-checkout cann-samples. Он не конфигурирует посторонние примеры и не требует json, asc-devkit,
-shmem, git submodule update или доступа к сети. Оба репозитория включены целиком.
-Архив json в `demo/offline/` сохранён дополнительно для корневого CMake, но для этой демки не нужен.
+`demo/CMakeLists.txt` builds only RMSNorm from the included cann-samples checkout.
+It does not configure unrelated examples or require JSON downloads, asc-devkit,
+shmem, submodule initialization, or network access. The JSON archive in `demo/offline/`
+is retained for the upstream root CMake configuration and is unnecessary for this build.
 
-Шейп всех вариантов по умолчанию изменён с `4096 × 8192` на `128 × 256`
-(32768 вместо 33554432 элементов, в 1024 раза меньше). `RMS_DEMO_DEBUG=ON` добавляет `-g`,
-оптимизация `-O3` сохраняется. Варианты 0 и 1 работают на одном Vector Core,
-остальные используют распределение строк из исходного примера.
-256 столбцов сохраняют длинную векторную обработку и включают binary-add в варианте 6.
-Генератор использует одинаковый seed 20260511, поэтому варианты получают одинаковые данные.
+All variants default to **128 × 256**, replacing **4096 × 8192**:
+32768 elements instead of 33554432, a 1024-fold reduction in element count.
+`RMS_DEMO_DEBUG=ON` adds `-g` while retaining `-O3` optimization.
+Variants 0 and 1 use one Vector Core; later variants retain the original row distribution.
+256 columns retain vector loops and enable the binary-add branch in variant 6.
+The data generator uses seed `20260511` for identical inputs across variants.
 
-Шейп задаётся при сборке, аргументов шейпа у исполняемых файлов нет:
+The shape is selected at build time, not through executable arguments:
 
 ```bash
 RMS_DEMO_A=128 RMS_DEMO_R=256 bash "$DEMO_ROOT/demo/build.sh"
-# Для возврата исходного размера (будет гораздо дольше):
+# Restore the original shape, with substantially longer simulation time:
 # RMS_DEMO_A=4096 RMS_DEMO_R=8192 bash "$DEMO_ROOT/demo/build.sh"
 ```
 
-## 3. Интерактивный выбор и запуск
+## 3. Select and run variants
 
 ```bash
-bash demo.sh                       # интерактивное меню
-bash demo.sh 2 4 5                  # выбранные варианты без меню
-bash demo.sh --dry-run 2 4 5        # показать точные команды без симуляции
-bash demo.sh --list                 # варианты и краткое описание
+bash demo.sh                       # interactive menu
+bash demo.sh 2 4 5                  # selected variants without the menu
+bash demo.sh --dry-run 2 4 5        # preview exact commands without simulation
+bash demo.sh --list                 # list variants and descriptions
 ```
 
-В меню можно вводить номера `0..6` через пробел. Команды меню:
-`a` — основная цепочка 1, 2, 4, 5, 6; `b` — сборка всех семи;
-`p 2 4` — показать команды для 2 и 4; `s` — сводка записанных профилей; `q` — выход.
-После завершения выбранных вариантов меню появляется снова.
-Для отдельной демонстрации double buffer выбрать `3 4`.
+Enter numbers `0..6` separated by spaces. Menu commands:
 
-Перед запуском показываются `source` CANN, `CANNSIM_COLLECT`, `BIPROF_OPTS`, `PYTHONPATH`
-и точная команда каждого выбранного варианта с путями. Во время выполнения сборки и
-симуляции также печатаются реальные команды (`set -x`); они сохраняются в `logs/`.
-Если бинарников нет или CMake-кеш остался от другого пути, меню сначала запускает сборку.
-Офлайн-установка numpy автоматически выполняется через `start.sh`.
+- `a`: run the main sequence, 1, 2, 4, 5, 6.
+- `b`: build all seven variants.
+- `p 2 4`: preview commands for variants 2 and 4.
+- `s`: summarize saved profiles.
+- `q`: exit.
 
-### Автоматический запуск пяти запрошенных этапов
+The menu returns after the selected runs finish. Choose `3 4` to isolate double buffering.
+Before execution, the launcher displays CANN initialization, `CANNSIM_COLLECT`,
+`BIPROF_OPTS`, `PYTHONPATH`, and the exact command for each selected variant.
+Build and simulation commands are also echoed during execution with `set -x`
+and saved in `logs/`. Missing binaries or a stale CMake cache trigger an offline rebuild.
+Offline NumPy installation is handled by `start.sh`.
+
+### Automatic main sequence
 
 ```bash
 bash "$DEMO_ROOT/demo/run.sh"             # 1 → 2 → 4 → 5 → 6
-# Те же запуски по одному:
+# Run each main variant separately:
 bash "$DEMO_ROOT/demo/run.sh" 1
 bash "$DEMO_ROOT/demo/run.sh" 2
 bash "$DEMO_ROOT/demo/run.sh" 4
@@ -126,7 +135,7 @@ bash "$DEMO_ROOT/demo/run.sh" 5
 bash "$DEMO_ROOT/demo/run.sh" 6
 ```
 
-Полные команды без обёртки:
+Exact simulator commands without the wrapper:
 
 ```bash
 source "$DEMO_ROOT/demo/env.sh"
@@ -138,58 +147,59 @@ python3 -m npusim.main record "$BIN/rms_norm_quant_5_ub_utilization" -s Ascend95
 python3 -m npusim.main record "$BIN/rms_norm_quant_6_binary_sum" -s Ascend950 -g vf -n all -o "$RESULTS_DIR/rms_norm_quant_6_binary_sum"
 ```
 
-`-g vf` включает автоматическую генерацию отчётов и дополнительный VF IPC JSON.
-`-n all` включает сбор/отчёты по всем доступным AI cores (у Ascend950 в этой конфигурации 32 AI cores,
-с векторными subcores); это не ограничение расчёта одним ядром. `CANNSIM_COLLECT=all` включает все группы коллектора.
-`--pv` не используется: нужны временные характеристики timing simulator.
-Полный сбор и отчёты по всем ядрам требуют больше времени и памяти, чем только функциональный запуск.
-Для более короткого просмотра можно `REPORT_CORES=0 bash demo/run.sh 2`, но демонстрационные результаты собраны с `all`.
+`-g vf` enables automatic reports and additional VF IPC JSON output.
+`-n all` collects and reports all available AI cores: this configuration has
+32 AI cores with vector subcores. It does not restrict computation to one core.
+`CANNSIM_COLLECT=all` enables all collector groups. Timing simulation is used;
+`--pv` is omitted because accurate timing is required.
+Full collection and reports require more CPU time and memory than functional simulation.
+For a smaller report, use `REPORT_CORES=0 bash demo/run.sh 2`; recorded demo results use `all`.
 
-Приложение само вызывает `gen_data.py` рядом с исполняемым файлом. Не запускать варианты одновременно
-в одном каталоге сборки: входы/выходы имеют общие имена. Обёртка запускает их последовательно.
-Проверка примера допускает абсолютную разницу int8 ≤ 1; успешный лог содержит
-`Precision is 100%` и `Compare Difference length 0`. Это проверка с допуском, не побитовое совпадение.
-`run.sh` дополнительно проверяет эту строку, поскольку сам пример способен вернуть 0 при несовпадении.
+Executables invoke `gen_data.py` next to the binary. Run variants sequentially:
+input and output filenames are shared within a build directory.
+The numerical comparison permits an absolute int8 difference of at most 1.
+Success prints `Precision is 100%` and `Compare Difference length 0`.
+This is a tolerance check rather than bitwise identity. The wrapper checks the
+success message because an upstream example can return zero on a mismatch.
 
-## 4. Порядок показа
+## 4. Presentation order
 
-1. **1 — preload_gamma:** gamma вынесена из цикла и загружается один раз. Показать, что работает
-   один Vector Core; это удобная начальная точка для демонстрации распараллеливания.
-2. **2 — multi_core:** независимые строки распределены между Vector Cores. Сопоставить длительность
-   и occupancy с 1. Набор вычислений внутри строки остаётся прежним.
-3. **4 — double_buffer:** относительно 2 здесь сразу два изменения: переход на MicroAPI VF
-   (промежуточные значения остаются в регистрах) и двойная буферизация (перекрытие MTE2/VEC/MTE3).
-   Показать VF IPC, число загрузок/записей и пересечения дорожек. Для отдельного доказательства
-   эффекта двойной буферизации дополнительно запустить 3: `bash demo/run.sh 3`, затем сравнить 3 → 4.
-4. **5 — ub_utilization:** пакетная обработка нескольких строк в UB; уменьшаются число DMA-команд
-   и накладные расходы scalar/циклов. На маленьком шейпе каждый core обрабатывает мало строк,
-   поэтому выигрыш и глубина перекрытия могут отличаться от исходной большой задачи.
-5. **6 — binary_sum:** другая схема накопления и вычисление обратного корня с уточнением.
-   Показать изменение VF/инструкций и численную проверку. Этот шаг не гарантирует ускорение относительно 5.
+1. **1 — preload_gamma:** gamma is loaded once outside the row loop.
+   Show that one Vector Core is active; this is the starting point for parallelization.
+2. **2 — multi_core:** independent rows are distributed across Vector Cores.
+   Compare kernel duration and occupancy with variant 1; row computation is unchanged.
+3. **4 — double_buffer:** compared with 2, this includes both MicroAPI VF register reuse
+   and double buffering. Show VF IPC, load/store counts, and overlapping pipeline tracks.
+   Use **3 → 4** to demonstrate double buffering separately.
+4. **5 — ub_utilization:** batch multiple rows in UB to reduce DMA commands and scalar
+   loop overhead. Each core has little work at this shape, so overlap and gains differ
+   from the original large case.
+5. **6 — binary_sum:** change the accumulation scheme and reciprocal-square-root
+   refinement. Show VF/instruction changes and the numerical check. This step does not
+   guarantee a speedup over 5.
 
-Для полной истории дополнительно доступны 0 (naive) и 3 (VF):
+Variants 0 and 3 are also available. For the complete source progression:
 `bash demo/run.sh 0 1 2 3 4 5 6`.
-В 0 gamma загружается заново для каждой строки; сравнение 0 → 1 отдельно показывает preload.
-Результаты из исходного README для большого шейпа не являются измерениями этой демки.
-Фактические показатели и реально сработавшие хинты приведены в разделе 6.
+Variant 0 reloads gamma for every row; 0 → 1 isolates gamma preloading.
+The upstream README's large-shape results are not measurements of this small demo.
+Measured results and actual hints are listed in section 6.
 
-## 5. Где смотреть отчёты
+## 5. Report files
 
-Каждый запуск создаёт отдельный `results/rms_norm_quant_<вариант>/npusim_<время>_<имя>/`.
-Внутри `record/` сохраняются SQLite DB коллектора и его лог, в `report/results/` — отчёты.
-Полные команды и сообщения приложений находятся также в `logs/rms_norm_quant_*.log`.
+Each run creates `results/rms_norm_quant_<variant>/npusim_<timestamp>_<name>/`.
+`record/` contains collector SQLite databases and logs; reports are under `report/results/`.
+Console output and exact commands are also saved in `logs/rms_norm_quant_*.log`.
+Exact artifact paths are listed in `measurements.json`.
 
-Основные файлы (точные относительные пути перечислены в `measurements.json`):
+- `summary.json`: kernel clocks, instruction counts, active cores, utilization, overlap, and diagnosis.
+- `aicore_utilization.json`: activity distribution across cores and subcores.
+- `core_*/trace_core*.json`: instruction/pipeline timelines and scalar/VF IPC.
+  Load a file in local Chrome/Chromium at `chrome://tracing`; no Internet is required.
+- `*_vf_report.json`: additional VF IPC output requested with `-g vf`.
+- `*.npu-rep`: archive for a compatible report viewer, when produced by the backend.
+- `.db` tables `HintTypes`, `HintMessages`, `KernelHints`, and `InstructionHints`: actual hints.
 
-- `summary.json`: clocks, число инструкций, активные core, utilization, overlap и диагностика.
-- `aicore_utilization.json`: распределение активности по core/subcore.
-- `core_*/trace_core*.json`: инструкция/пайплайн, scalar/VF IPC; открыть в локальном Chrome/Chromium
-  на `chrome://tracing` и загрузить файл (интернет не нужен).
-- `*_vf_report.json`: дополнительный VF IPC-отчёт, запрошенный через `-g vf`.
-- `*.npu-rep`: архив для совместимого просмотрщика отчётов, если его сформировал backend.
-- `.db` с `HintTypes`, `HintMessages`, `KernelHints`, `InstructionHints`: фактические хинты.
-
-Если после переноса хочется пересобрать отчёт из имеющихся сырых данных без повторной симуляции:
+Regenerate reports from existing raw data without repeating simulation:
 
 ```bash
 source demo/env.sh
@@ -198,29 +208,29 @@ python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerate
   --object-file "$BUILD_DIR/Samples/2_Performance/rms_norm_quant_story/rms_norm_quant_2_multi_core"
 ```
 
-Повторная сборка исполняемого файла с тем же исходным кодом и настройками необходима для корректного
-сопоставления PC с исходными строками. Для просмотра готовых JSON пересборка не нужна.
-Существующие VF JSON сохранены в комплекте; обычная команда `report` не добавляет флаг `-g vf`.
+For correct source-line mapping, rebuild the executable with the same source and flags.
+Viewing existing JSON does not require rebuilding. The ordinary `report` command does
+not add `-g vf`; the existing VF JSON files are included in the full package.
 
-Сводка и извлечение хинтов из завершённых запусков (БД открываются только для чтения):
+Extract summaries and hints from completed runs, opening databases read-only:
 
 ```bash
 python3 demo/summarize.py
 ```
 
-Это обновляет `measurements.json`. Если основной BiProf backend не смог построить отчёт и
-сработал запасной `prof_demo`, отчёты JSON могут появиться без полноценной системы хинтов.
-В таком случае смотреть ошибки в `report/results/runner.py.log`; отсутствие записей не равно
-подтверждению отсутствия проблем. Состояния обработчиков хинтов также сохранены в сводке.
+This updates `measurements.json`. If the primary BiProf backend fails and falls back
+to `prof_demo`, JSON reports may exist without the full hint system. Check
+`report/results/runner.py.log`; missing hint records do not prove the absence of issues.
+Hint processor status is also retained in the summary.
 
+## 6. Measured results (2026-11-03)
 
-## 6. Измеренные результаты (2026-11-03)
+Main sequence: **1 → 2 → 4 → 5 → 6**, shape `128 × 256`, timing simulator,
+`CANNSIM_COLLECT=all`, `-g vf -n all`.
+All five numerical checks passed: **100%, Compare Difference length 0**, tolerance ≤ 1.
+`measurements.json` contains full metrics, artifact paths, hint messages, and processor status.
 
-Основной прогон: **1 → 2 → 4 → 5 → 6**, `128 × 256`, timing simulator, `CANNSIM_COLLECT=all`, `-g vf -n all`.
-Все пять численных сравнений: **100%, Compare Difference length 0** (допуск ≤ 1).
-Полные числовые данные, пути артефактов, тексты хинтов и состояния их обработчиков: `measurements.json`.
-
-| Вариант | Активные subcore | Такты ядра | Симуляция на CPU, с | Exec IPC | RVECLD | RVECST | MTE2 / MTE3 транзакции |
+| Variant | Active subcores | Kernel clocks | CPU simulation, s | Exec IPC | RVECLD | RVECST | MTE2 / MTE3 transactions |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 1_preload_gamma | 1 | 111589 | 249.28 | 0.2717 | 2948 | 3589 | 129 / 128 |
 | 2_multi_core | 64 | 8788 | 42.83 | 0.2285 | 3200 | 3904 | 192 / 128 |
@@ -228,73 +238,75 @@ python3 demo/summarize.py
 | 5_ub_utilization | 64 | 8123 | 42.36 | 0.2228 | 1920 | 1088 | 128 / 64 |
 | 6_binary_sum | 64 | 9478 | 44.92 | 0.2141 | 2112 | 1536 | 128 / 64 |
 
-Такты относятся к исполняемому ядру. CPU-время симуляции включает модель и её запуск; это другая метрика.
-Генерация отчётов занимает дополнительное время. Полный основной прогон с отчётами на этой машине занял около **8 минут 18 секунд**.
-Показ готовых отчётов из комплекта не требует повторной симуляции.
+Kernel clocks describe device-kernel execution. CPU simulation time includes the
+model and its startup and is a separate metric. Report generation takes additional time.
+The complete main sequence with reports took about **8 minutes 18 seconds** on this machine.
+Existing recorded reports can be shown immediately without repeating simulation.
 
-| Шаг показа | Что подтверждено | Соответствующие хинты |
+| Comparison | Measured effect | Related hints |
 |---|---|---|
-| 1 → 2 | Тактов меньше в 12.70 раза; активных векторных subcore 1 → 64 | В 1 есть `general_single_core`, `small_grid_hint`; в 2 оба исчезли |
-| 2 → 4 | RVECLD 3200 → 1920 (−40%), RVECST 3904 → 1216 (−68.9%), Exec IPC 0.2285 → 0.3289; тактов при этом стало на 10.9% больше | `low_vec_ipc_hint` и `low_vec_mte2_overlap_hint` остаются: пороги ещё не преодолены |
-| 4 → 5 | Тактов на 16.7% меньше; MTE2 192 → 128, MTE3 128 → 64; scalar инструкций 55808 → 53312 | Специальный `mte_calls_hint` не сработал; появляется `general_aiv_underutilization` |
-| 5 → 6 | Иная редукция/обратный корень, численная проверка успешна; тактов на 16.7% больше | Набор хинтов сохраняется, отдельного хинта «улучшилась точность» нет |
+| 1 → 2 | 12.70× fewer clocks; active vector subcores 1 → 64 | `general_single_core` and `small_grid_hint` appear in 1 and disappear in 2 |
+| 2 → 4 | RVECLD −40%, RVECST −68.9%, Exec IPC 0.2285 → 0.3289; kernel clocks increase 10.9% | `low_vec_ipc_hint` and `low_vec_mte2_overlap_hint` remain below their thresholds |
+| 4 → 5 | Kernel clocks −16.7%; MTE2 192 → 128, MTE3 128 → 64; scalar instructions 55808 → 53312 | `mte_calls_hint` did not fire; `general_aiv_underutilization` appears |
+| 5 → 6 | Different reduction/reciprocal square root; numerical check passes; clocks increase 16.7% | The hint set remains; there is no separate accuracy-improvement hint |
 
-В многоядерных версиях также сработали `tail_effect_inter_core` и `tail_effect_intra_core`.
-На таком маленьком шейпе каждый subcore обрабатывает только две строки, и запуск/завершение заметно влияют на span.
-Поэтому малый шейп подходит для быстрого показа механики и данных профайлера, но не воспроизводит
-монотонное ускорение из исходного README на большом шейпе. Сравнение 2 → 4 включает сразу VF и double buffer;
-для разделения этих двух изменений предусмотрен вариант 3.
+Multicore variants also trigger `tail_effect_inter_core` and `tail_effect_intra_core`.
+Each subcore processes only two rows, so startup and completion significantly affect its span.
+This small shape demonstrates profiling mechanics but does not reproduce the monotonic
+large-shape speedups in the upstream README. Comparison 2 → 4 combines VF and double buffering;
+use variant 3 to separate them.
 
-### Фактические ограничения профиля
+### Observed profiling limitations
 
-- `low_vec_mte2_overlap_hint` остался во всех пяти версиях. В 4 overlap MTE2/VEC вырос относительно 2
-  с 0.0670/0.0646 до 0.1610/0.1515 для AIV0/AIV1, но остался ниже порога 0.20.
-- `vector_fusion_hint` и `mte_calls_hint` в этих запусках не выдали сообщений. Не выдавать
-  выводы по счётчикам за реально сработавший хинт.
-- `--memory-utilization` отработал: в 1 есть 1 memory view, в многоядерных вариантах — 64.
-  Для 1/2/4 число ячеек heatmap: 36/2304/1600. Данные находятся в БД и `.npu-rep`.
-- Несмотря на `CANNSIM_COLLECT=all`, таблицы `SIMDSamplingStats`, `VfPMUMetrics` и `PMUScalarCounters`
-  в собранных данных пусты. PMU-хинты на этих данных не демонстрируются. VF IPC и метрики инструкций присутствуют.
-- Для MicroAPI-версий анализатор `ascend950_simd_region_tracing_analyzer` сообщил
-  `RV_VBR instruction without Sn value`. Общий BiProf-отчёт, VF JSON, memory heatmap и обработчики хинтов
-  созданы, но SIMD regions нельзя считать полностью разобранными. Симулятор в комплекте не изменён.
-- Модуль `npusim.dashboard` в целевом репозитории отсутствует; агрегированный HTML пропущен.
-  Для показа используйте готовые `.npu-rep` в совместимом просмотрщике либо JSON/Chrome tracing.
-- `data_race_detection` не нашёл нарушений. `sync_instruction_detection` выдал сообщения:
-  1 — 2443, 2 — 3228, 4 — 3179, 5 — 1708, 6 — 1780. Отчёты сохранены с привязкой к исходникам.
-  Причины этих сообщений отдельно не исследовались; успешное численное сравнение не означает
-  отсутствие сообщений детектора синхронизации.
+- `low_vec_mte2_overlap_hint` remains in all five main variants. Relative to 2, variant 4
+  improves AIV0/AIV1 overlap from 0.0670/0.0646 to 0.1610/0.1515, still below 0.20.
+- `vector_fusion_hint` and `mte_calls_hint` did not emit messages in these runs.
+  Counter-based observations should not be presented as hints that actually fired.
+- `--memory-utilization` produced one memory view in 1 and 64 in multicore variants.
+  Heatmap cell counts for 1/2/4 are 36/2304/1600. Data is stored in the DB and `.npu-rep`.
+- Despite `CANNSIM_COLLECT=all`, `SIMDSamplingStats`, `VfPMUMetrics`, and `PMUScalarCounters`
+  are empty in the collected data. PMU hints cannot be demonstrated from these records.
+  VF IPC and instruction metrics are present.
+- For MicroAPI variants, `ascend950_simd_region_tracing_analyzer` reports
+  `RV_VBR instruction without Sn value`. General BiProf reports, VF JSON, memory heatmaps,
+  and hint processors completed, but SIMD regions were not fully decoded.
+  The packaged simulator source is unmodified.
+- The target repository has no `npusim.dashboard` module, so aggregated HTML was skipped.
+  Show `.npu-rep` in a compatible viewer or use JSON/Chrome tracing.
+- `data_race_detection` found no violations. `sync_instruction_detection` emitted
+  2443/3228/3179/1708/1780 messages for variants 1/2/4/5/6 respectively.
+  Source-mapped reports are included. These messages were not investigated separately;
+  passing the numerical check does not imply a clean synchronization report.
 
-### Проверка переноса
+### Relocation validation
 
-Оба репозитория и офлайн-зависимости скопированы в `/tmp/npusim_offline_relocation_check`.
-Все семь целей заново собраны там при ограниченном доступе к сети; заголовки и Python-пакеты не скачивались.
-Отдельно проверены установка numpy из wheel с `--no-index` и автоматическое сохранение/замена
-CMake-кеша от другого пути. Логи: `logs/offline-relocation-build.log`, `logs/offline-stale-cache-build.log`.
-Отсутствие абсолютных симлинков в переносимом комплекте также проверено.
+Both repositories and offline dependencies were copied to `/tmp/npusim_offline_relocation_check`.
+All seven targets were rebuilt there with restricted network access and no header or package downloads.
+Offline NumPy wheel installation and automatic replacement of a CMake cache from another path
+were also checked. Logs: `logs/offline-relocation-build.log` and `logs/offline-stale-cache-build.log`.
+The transferable package was checked for absolute symlinks; none were found.
 
+### Isolated double-buffer comparison
 
-Дополнительно записан **3_vf**: 10196 тактов, симуляция 45.80 с, численная проверка 100%.
-Сравнение **3 → 4**: 10196 → 9746 тактов (-4.4%).
-Здесь двойная буферизация даёт **4.4% меньше тактов**. Перекрытие MTE2/VEC растёт
-с 0.0558/0.0704 до 0.1610/0.1515 для AIV0/AIV1. Хинт `general_aiv_underutilization`,
-который есть в 3, в 4 исчезает; `low_vec_mte2_overlap_hint` остаётся, поскольку overlap ещё ниже 0.20.
-Для отдельного показа double buffer использовать именно **3 → 4**, а не 2 → 4.
-Готовые данные варианта 3 включены в комплект; основной сценарий `start.sh` по-прежнему запускает 1, 2, 4, 5, 6.
+Additional variant **3_vf**: 10196 kernel clocks, 45.80 s CPU simulation, numerical check 100%.
+**3 → 4** changes clocks from 10196 to 9746: **4.4% fewer clocks**.
+AIV0/AIV1 MTE2/VEC overlap rises from 0.0558/0.0704 to 0.1610/0.1515.
+`general_aiv_underutilization` appears in 3 and disappears in 4;
+`low_vec_mte2_overlap_hint` remains because overlap is still below 0.20.
+Use **3 → 4**, rather than 2 → 4, to demonstrate double buffering separately.
+Variant 3's recorded data is included. `start.sh` still runs the main sequence 1, 2, 4, 5, 6.
 
+## 7. Short presenter script
 
-## 7. Короткий сценарий для ведущего
+1. Run `bash demo.sh` and introduce the variants.
+2. Enter `p 1 2` to show exact commands and collection settings; explain `-g vf -n all`.
+3. Enter `1 2` to compare single-core and multicore execution.
+4. Enter `p 3 4`, then `3 4`, to compare VF with one and two buffers.
+5. Enter `4 5` to show row batching in UB.
+6. Enter `5 6` to show the reduction change; explain why 6 is slower at this shape.
+7. Enter `s` for saved-run summaries, or `q` to exit.
 
-1. `bash demo.sh` — показать список вариантов и их смысл.
-2. `p 1 2` — показать реальные команды и настройки сбора; объяснить `-g vf -n all`.
-3. `1 2` — запустить сравнение одного ядра с распределением строк.
-4. `p 3 4`, затем `3 4` — отдельно показать VF с одним и двумя буферами.
-5. `4 5` — показать пакетную обработку в UB.
-6. `5 6` — показать изменение редукции; объяснить, что шаг 6 здесь медленнее.
-7. `s` — вывести сводку всех сохранённых запусков, `q` — закрыть меню.
-
-Для экономии времени использовать уже включённые профили из раздела 6 и запускать только
-нужные аудитории варианты. Каждый повторный запуск создаёт новый каталог с временем,
-поэтому предыдущие профили сохраняются. Время ядра немного меняется между запусками модели;
-таблица выше относится к первому основному прогону. В `measurements.json` могут быть также
-повторные запуски, сделанные при проверке интерактивного меню.
+To save presentation time, show the included recorded profiles and run only the variants
+needed for the audience. Every run creates a new timestamped directory and preserves
+previous profiles. Model timings vary slightly between runs; the table describes the
+first main sequence. `measurements.json` may also contain later interactive-menu validation runs.
