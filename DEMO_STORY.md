@@ -21,7 +21,7 @@ The times below are simulated kernel clocks, not the host time spent generating 
 ## First transition: repeated copies on the timeline → load gamma once
 
 **Before: report 0, Timeline → core 0 → AIV0; expand MTE2 and vector/VF lanes.**
-Zoom into several consecutive rows, past initialization. Point out the repeating
+Find several consecutive row groups after initialization. Point out the repeating
 input-transfer pattern before each row's computation.
 
 “Here the work repeats row by row. The input row changes, but gamma is shared by
@@ -44,9 +44,9 @@ The recorded transfer parameters are empty, so do not claim that the event's
 Details reveal identical source addresses. Identify gamma from the source loop
 and validate the change using the pattern and transaction count.
 
-> **Screenshot 1 — before:** report 0, core 0 / AIV0, roughly 4.4–8.8 µs. Keep MTE2, PUSHQ, RVECLD, and RVECST visible. Mark the repeated MTE2 pairs, then the recurring vector load/store groups.
+> **Screenshot 1 — before:** report 0, core 0 / AIV0. Keep MTE2, PUSHQ, RVECLD, and RVECST visible. Mark the repeated MTE2 pairs, then the recurring vector load/store groups.
 >
-> **Screenshot 2 — after:** report 1, the same 4.4–8.8 µs scale and lanes. Mark the one-time preload and the single recurring row transfer. Add an inset of the initial gamma-conversion VF and its one-time stores.
+> **Screenshot 2 — after:** report 1, core 0 / AIV0, the same lanes. Mark the one-time preload and the single recurring row transfer. Add an inset of the initial gamma-conversion VF and its one-time stores.
 
 For a second visual check, follow **RVECLD → RVECST**, rather than stopping at
 MTE2: gamma no longer needs the same repeated conversion and UB writeback in every
@@ -61,7 +61,7 @@ and [1_preload_gamma.asc](NPUSim_Prof_Live_Demo/cann-samples/Samples/2_Performan
 
 ## Second transition: a single-core hint → distribute the independent rows
 
-**Before: report 1, Performance hints; then zoom out on Timeline.**
+**Before: report 1, Performance hints; then open the Timeline overview.**
 
 “We have cleaned up the transfers, but almost the entire processor is still idle.
 The Small Grid hint says **only 1 of 32 available cores is used**, and the
@@ -82,7 +82,7 @@ There are 32 physical AI cores, each with AIV0 and AIV1. The summary's
 64 physical AI cores. Other hints remain: Low SIMD IPC, low VEC/MTE2 overlap,
 and Tail Effect. We have fixed the launch parallelism; now we look inside a core.
 
-> **Screenshot 3 — before:** report 1, Timeline overview plus Small Grid / Single-core hints. Show the full long row sequence, with the time-axis range visible; add a core-0 closeup showing the repeating three-VF row motif.
+> **Screenshot 3 — before:** report 1, Timeline overview plus Small Grid / Single-core hints. Show the full long row sequence; add a core-0 closeup showing the repeating three-VF row motif.
 >
 > **Screenshot 4 — after:** report 2, the full multicore Timeline and the hint list without those messages. In a second crop, keep core 0 / AIV0: the three-VF row motif now repeats twice, rather than 128 times.
 
@@ -91,8 +91,8 @@ transfers become two**, and **385 VF executions become seven** (one gamma VF plu
 three per row). We remove the long serialized chain from one context by spreading
 it across 64 vector contexts; the row's computational motif itself is still
 recognizable. Use the `.npu-rep` multicore view for the overview: a standalone
-`core_0` JSON cannot show the other cores. Keep equal time scales for the local
-comparison, or show both axis ranges explicitly when using Fit.
+`core_0` JSON cannot show the other cores. Compare the number of repeated row
+groups on the same core and component.
 
 ## Third transition: fragmented per-row work → a larger unit of work
 
@@ -126,11 +126,11 @@ the package for a deeper technical discussion, but are not stops in this walkthr
 Do not attribute the entire improvement to batching or claim that every individual
 change necessarily accelerated this small workload.
 
-> **Screenshot 5 — before:** report 2, core 0 / AIV0, approximately 4.4–6.8 µs. Show PUSHQ, RVECLD, RVECST, MTE2, and MTE3. Mark seven VF calls, two row-compute groups, and the separate output copies.
+> **Screenshot 5 — before:** report 2, core 0 / AIV0. Show PUSHQ, RVECLD, RVECST, MTE2, and MTE3. Mark seven VF calls, two row-compute groups, and the separate output copies.
 >
-> **Screenshot 6 — after:** report 5, the same lanes and 4.4–6.8 µs scale. Mark the gamma VF, the one batched-compute VF, and the single output transfer. Do not confuse fewer, larger work groups with elimination of the computation itself.
+> **Screenshot 6 — after:** report 5, core 0 / AIV0, the same lanes. Mark the gamma VF, the one batched-compute VF, and the single output transfer. Do not confuse fewer, larger work groups with elimination of the computation itself.
 
-Take a second, tighter look at the **RVECLD / RVECST** lanes. In report 2, the
+Next inspect the **RVECLD / RVECST** lanes. In report 2, the
 row groups repeatedly spill vector results to UB and read intermediates back.
 In report 5, more intermediates remain inside the combined VF. On this exact
 core/subcore, pure `RV_VST` events fall from **48 to 14**, `RV_VLD` from **40 to 30**,
@@ -144,9 +144,9 @@ VF-completion markers around the reorganized computation. Show those individual
 events in Details; do not describe them as proof that all synchronization stalls
 or data dependencies disappeared.
 
-> **Screenshot 7 — vector detail before:** report 2, core 0 / AIV0, 5.7–6.5 µs; highlight `RV_VLDI`, repeated `RV_VST` clusters, and the four `RV_SMEM_BAR` events.
+> **Screenshot 7 — vector detail before:** report 2, core 0 / AIV0, RVECLD and RVECST; highlight `RV_VLDI`, repeated `RV_VST` clusters, and the four `RV_SMEM_BAR` events.
 >
-> **Screenshot 8 — vector detail after:** report 5, 5.9–6.2 µs; highlight the shorter store sequence and the single `RV_SMEM_BAR`. Mention that `RV_VLDI` has no events in this version. These two detail crops use different ranges; label their axes and compare event structure/counts, not rectangle widths.
+> **Screenshot 8 — vector detail after:** report 5, core 0 / AIV0, RVECLD and RVECST; highlight the shorter store sequence and the single `RV_SMEM_BAR`. Mention that `RV_VLDI` has no events in this version. Compare the event groups and their counts.
 
 As a short final view, open **Memory load analysis → Full screen → UB** in report 5.
 Connect the grouped transfers to the OUT→UB and UB→OUT paths and the touched UB
@@ -205,23 +205,11 @@ expect an instruction to keep the same PC after recompilation.
 | RVECST / `RV_SMEM_BAR` | 4 | 1 | Fewer internal memory-barrier markers |
 | RVECST / `RV_SEND` | 7 | 2 | Fewer VF-end markers |
 
-Useful anchors in the exact saved traces:
-
-| Report | Event | Raw trace timestamp, µs |
-| --- | --- | ---: |
-| 0 | First MTE2 pair, PCs `0xd20` / `0xde0` | 4.729697 / 4.760606 |
-| 1 | One-time MTE2 site `0xa94`; first recurring `0xe5c` | 4.753333 / 4.807879 |
-| 2 | First `RV_VLDI` island | 5.761818–5.762424 |
-| 2 | Four `RV_SMEM_BAR` markers | 6.005455, 6.020606, 6.449697, 6.464848 |
-| 5 | Batched-compute `VF`, PC `0xea4` | 5.912727 |
-| 5 | Only `RV_SMEM_BAR`, PC `0x10cc` | 6.099394 |
-| 5 | Only MTE3 output copy | 6.180606 |
-
-These are Chrome Trace `ts` values in **microseconds**; a nanosecond axis shows
-1,000 times these numbers. If the viewer rebases its origin, locate the event by
-name and PC instead. Exact timestamps/PCs apply to the linked saved runs, not
-necessarily to a rebuild. Keep only the lanes needed for the comparison visible;
-scalar slot tracks can otherwise hide the pattern.
+To find these changes, select **core 0 / AIV0**, expand the lane listed in the
+tables, and search for the exact event name. When copy events have identical
+names, select one and inspect **Details → Parameter → pc**. Keep only the lanes
+needed for that comparison visible; collapse scalar slot tracks if they hide
+the pattern. PCs above refer to the linked saved binaries and may change after rebuilding.
 
 **Do not point at arbitrary whitespace and call it a stall.** These records have
 no dedicated BUBBLE events or explicit `WAIT_FLAG` events. They support showing
