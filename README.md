@@ -19,6 +19,16 @@ with the narration, timeline capture instructions, screenshot positions, and com
 Its source/profile links resolve after extracting the package.
 The walkthrough is also included inside the archive as `DEMO_STORY.md`.
 
+For `.npu-rep` viewing, install the VS Code `.vsix` from
+[the profiling extension releases](https://gitcode.com/opdevtools/plugin_release/releases/) using **Install from VSIX…**.
+
+Tested environment: **CANN 9.3.0**, build `20261028000328247`
+([matching download](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master/20261028000328247/));
+npu-simulator base `1185ddf016a0e3563c0d3af80305d7ea78c81fe9`;
+cann-samples base `5c6e28cc7fce6fbeb9b67befcde98a6a4dc492ed`.
+[Viewer setup and exact source links](DEMO_STORY.md#viewer-and-tested-environment)
+are documented alongside the launch commands.
+
 Git stores one LFS archive plus documentation. The extracted workspace is ignored;
 sources, runtime, and profiles are contained in the archive instead of duplicated in Git.
 After a Git clone, run `git lfs pull` to retrieve the archive.

@@ -228,6 +228,40 @@ all waits vanished or that every empty interval has a known cause. The
 low-overlap hint still exists in report 5; do not use this pair to claim that
 copy/compute overlap became perfect.
 
+## Viewer and tested environment
+
+To view `.npu-rep` reports, download the VS Code extension (`.vsix`) from
+[the profiling extension releases](https://gitcode.com/opdevtools/plugin_release/releases/). In VS Code, open **Extensions →
+… → Install from VSIX…**, select the downloaded file, and open/import the saved
+`.npu-rep` in the extension's profiling report viewer. This displays the Timeline,
+Details, Performance hints, and memory/compute analysis used in this walkthrough.
+You can view the saved reports without rerunning the simulation.
+
+The equivalent extension-install command is:
+
+```bash
+code --install-extension /path/to/downloaded-extension.vsix
+```
+
+The demo was built and recorded with these exact versions:
+
+| Component | Tested version / upstream base revision | Download or source |
+| --- | --- | --- |
+| CANN | **9.3.0**, internal version `V100R001C13B036`, build `20261028000328247`; Linux x86_64, Ascend950 / dav-3510 | [Matching Huawei build](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master/20261028000328247/) · [CANN download portal](https://www.hiascend.com/developer/download/community/result?module=cann) |
+| npu-simulator | `1185ddf016a0e3563c0d3af80305d7ea78c81fe9` | [Exact commit](https://gitcode.com/cann/npu-simulator/commit/1185ddf016a0e3563c0d3af80305d7ea78c81fe9) |
+| cann-samples | `5c6e28cc7fce6fbeb9b67befcde98a6a4dc492ed` | [Exact commit](https://gitcode.com/cann/cann-samples/commit/5c6e28cc7fce6fbeb9b67befcde98a6a4dc492ed) |
+
+The matching build directory contains
+`Ascend-cann-toolkit_9.3.0~weekly.20261028.01_linux-x86_64.run` and the corresponding
+`Ascend-cann-950-ops_9.3.0~weekly.20261028.01_linux-x86_64.run`.
+Use the matching Ascend950 timing-simulator support; the simulator/helper data
+contract for this demo is version **7**.
+
+The two Git hashes identify the upstream base revisions. The archive includes
+local demo changes: the small 128 × 256 shape, offline build/launch wrappers,
+and the simulator fix for empty RV_VBR register payloads. Use the bundled sources
+to reproduce these reports. Python 3.12.16 and NumPy 1.26.4 are already bundled.
+
 ## Commands: prepare before the presentation
 
 The saved reports can be shown immediately. To reproduce the four stops:
