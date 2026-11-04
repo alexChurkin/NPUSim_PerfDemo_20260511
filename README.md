@@ -104,8 +104,45 @@ bash start.sh --list          # print variant descriptions and exit
 No menus or prompts. Progress appears in the console; detailed commands and
 output go to `logs/`. Single-core variants 0 and 1 take many minutes each, so
 prepare recordings before the talk. The default shape is **128 × 256**.
-Each run checks the output with absolute int8 tolerance 1 and collects all AI
-cores with `CANNSIM_COLLECT=all`, `-g vf -n all`. New runs have timestamped folders.
+Each run checks the output with absolute int8 tolerance 1. New local builds launch
+at most **2 vector cores** (`RMS_DEMO_CORES=2`); reports collect **core 0** by default
+(`REPORT_CORES=0`). `CANNSIM_COLLECT=all` selects collection categories, not the
+number of cores. Saved presentation reports above were recorded with 32 AI cores;
+new recordings with this cap have different timings and parallelism hints.
+New runs have timestamped folders.
+
+Local recording uses two CPU affinity slots, two model worker threads and one
+report worker. `demo/limited_run.py` monitors the entire subprocess tree, including
+new sessions, every 0.1 seconds. It kills that tree above 12288 MiB (12 GiB) aggregate RSS,
+below 1536 MiB available host memory, or after 900 seconds. These are monitored
+limits, not a kernel memory quota; brief overshoot is possible. Build parallelism
+defaults to two jobs (`JOBS=2`).
+
+The current WSL2 environment exposes about 7.5 GiB RAM through `/proc/meminfo`,
+although the physical PC has 16 GiB. With the current 12 GiB RSS cap, the
+**256 × 1024** trial was stopped by the free-memory reserve at 4429 MiB during
+model initialization, before kernel execution. See
+`logs/rms_norm_quant_6_binary_sum_20261104_115133.log` in the extracted workspace.
+No completed report or disappearing overlap warning is claimed for that trial.
+The 4096 × 8192 development build is not used by `start.sh`.
+
+To allocate 12 GiB to WSL2, add `memory=12GB` under `[wsl2]` in the Windows
+`%UserProfile%\.wslconfig`, save work in WSL, run `wsl --shutdown` in PowerShell,
+and reopen Ubuntu. The simulator RSS cap does not change the WSL2 VM allocation.
+
+For an isolated small-shape experiment (still subject to the memory guard):
+
+```bash
+export BUILD_DIR="$PWD/.development/build-small-overlap"
+export RESULTS_DIR="$PWD/.development/results-small-overlap"
+RMS_DEMO_A=256 RMS_DEMO_R=1024 RMS_DEMO_CORES=2 bash start.sh 2 5 6
+```
+
+Double buffering is introduced in **3 → 4**. The **2 → 5** comparison also changes
+the vector implementation and batches rows in UB. The saved 128 × 256 reports
+retain the Low VEC/MTE2 overlap warning in every variant. A convincing experiment
+must have multiple UB batches per core and measured overlap of at least 0.20;
+removing the warning by having too few instructions is not evidence of overlap.
 
 Refresh the comparison after additional runs:
 
@@ -118,10 +155,10 @@ For a direct simulator command, after building:
 ```bash
 source demo/env.sh
 export CANNSIM_COLLECT=all
-export BIPROF_OPTS='-l debug --save_tmp_files --scalar-ipc --vec-ipc --simd-perf --memory-utilization'
-python3 -m npusim.main record \
+export BIPROF_OPTS='-l debug --save_tmp_files --scalar-ipc --vec-ipc --simd-perf --memory-utilization -j 1'
+python3 "$DEMO_ROOT/demo/limited_run.py" python3 -m npusim.main record \
   "$BUILD_DIR/Samples/2_Performance/rms_norm_quant_story/rms_norm_quant_5_ub_utilization" \
-  -s Ascend950 -g vf -n all -o "$RESULTS_DIR/rms_norm_quant_5_ub_utilization"
+  -s Ascend950 -g vf -n 0 -o "$RESULTS_DIR/rms_norm_quant_5_ub_utilization"
 ```
 
 Regenerate a report from a saved record without running the simulator again:
