@@ -8,6 +8,9 @@ before the talk. Each transition follows the same
 pattern: find a problem in the report, change the implementation, then check the
 next report for the expected change.
 
+The figures are actual English web-viewer captures of the saved reports linked below.
+The original PNGs open at full resolution from `figures/demo/`.
+
 We use the same RMSNorm + quantization workload, **128 × 256**, throughout.
 All numbers refer to the linked saved runs; a new run can produce different timings.
 All four numerical checks pass with the original absolute int8 tolerance of 1.
@@ -30,6 +33,9 @@ The **Timeline** occupies the main area. Expand or collapse lane groups with the
 arrow beside their names. Collapse the many SCALAR slot rows when they hide the
 MTE2, MTE3, PUSHQ, RVECLD, or RVECST groups needed for a comparison. Selecting an
 instruction opens its event details; this is where to inspect its parameters.
+In these multicore imports the AIV0/AIV1 group names repeat for different cores.
+The captures use the **first AIV0 block (core 0)**. Count events within that block,
+not across every identically named group in the file.
 
 **Hints:** in the right-hand **Report statistics** panel, click **Performance
 analysis** at the **top right**. The hint messages appear in the **bottom panel**,
@@ -73,9 +79,13 @@ The recorded transfer parameters are empty, so do not claim that the event's
 Details reveal identical source addresses. Identify gamma from the source loop
 and validate the change using the pattern and transaction count.
 
-> **Screenshot 1 — before:** report 0, core 0 / AIV0. Keep MTE2, PUSHQ, RVECLD, and RVECST visible. Mark the repeated MTE2 pairs, then the recurring vector load/store groups.
->
-> **Screenshot 2 — after:** report 1, core 0 / AIV0, the same lanes. Mark the one-time preload and the single recurring row transfer. Add an inset of the initial gamma-conversion VF and its one-time stores.
+**Figure 1. Report 0 — repeated transfers.** MTE2 contains recurring pairs of input-copy events. The lower RVECLD/RVECST groups repeat with the row computation.
+
+![Report 0 — repeated transfers](figures/demo/01-naive-transfers.png)
+
+**Figure 2. Report 1 — gamma preloaded.** The initial gamma transfer appears once; subsequent rows have a single input transfer. Compare the recurring MTE2 and vector-store groups with Figure 1.
+
+![Report 1 — gamma preloaded](figures/demo/02-gamma-preloaded.png)
 
 For a second visual check, follow **RVECLD → RVECST**, rather than stopping at
 MTE2: gamma no longer needs the same repeated conversion and UB writeback in every
@@ -99,9 +109,10 @@ Single-core hint recommends distributing the work. The timeline supports that
 message: one vector context carries the execution. Rows are independent, so we
 can assign different rows to different vector subcores.”
 
-**After: report 2, open the same bottom Performance analysis panel and compare it with the multicore Timeline overview.**
+**After: report 2, open the same bottom Performance analysis panel and inspect the first AIV0 timeline block.**
 
-“Now the timeline shows work across the cores. More importantly, the two messages
+“The recorded work is now distributed across the cores. In the first AIV0 block,
+the long row sequence is reduced to two rows. More importantly, the two messages
 that led us here — **Small grid detected…** and **Single-core / under-launched kernel…** — are **absent** from **Hint Message**.
 Those rules still completed successfully; the problem that triggered them is
 no longer present. Kernel time falls from 111,498 to **8,785 clocks**, about
@@ -112,9 +123,13 @@ There are 32 physical AI cores, each with AIV0 and AIV1. The summary's
 64 physical AI cores. Other messages remain: **Low VEC IPC…**,
 **Low VEC/MTE2 overlap…**, and **Tail effect…**. We have fixed the launch parallelism; now we look inside a core.
 
-> **Screenshot 3 — before:** report 1, Timeline overview plus Small Grid / Single-core hints. Show the full long row sequence; add a core-0 closeup showing the repeating three-VF row motif.
->
-> **Screenshot 4 — after:** report 2, the full multicore Timeline and the hint list without those messages. In a second crop, keep core 0 / AIV0: the three-VF row motif now repeats twice, rather than 128 times.
+**Figure 3. Report 1 — single-core hints.** The top-right Performance analysis control opens the bottom panel. Its first two messages are Small grid detected and Single-core / under-launched kernel.
+
+![Report 1 — single-core hints](figures/demo/03-single-core-hints.png)
+
+**Figure 4. Report 2 — launch-parallelism hints removed.** The same panel now contains Tail effect, Low VEC/MTE2 overlap, and Low VEC IPC, without the two single-core messages. The timeline crop shows the first AIV0 block, not all physical cores at once.
+
+![Report 2 — launch-parallelism hints removed](figures/demo/04-multicore-hints.png)
 
 There is a concrete timeline change even when we stay on core 0: **128 output
 transfers become two**, and **385 VF executions become seven** (one gamma VF plus
@@ -157,9 +172,13 @@ the package for a deeper technical discussion, but are not stops in this walkthr
 Do not attribute the entire improvement to batching or claim that every individual
 change necessarily accelerated this small workload.
 
-> **Screenshot 5 — before:** report 2, core 0 / AIV0. Show PUSHQ, RVECLD, RVECST, MTE2, and MTE3. Mark seven VF calls, two row-compute groups, and the separate output copies.
->
-> **Screenshot 6 — after:** report 5, core 0 / AIV0, the same lanes. Mark the gamma VF, the one batched-compute VF, and the single output transfer. Do not confuse fewer, larger work groups with elimination of the computation itself.
+**Figure 5. Report 2 — per-row VF and transfers.** The first AIV0 block contains seven VF executions across the PUSHQ slots, three input-copy events, and two output-copy events.
+
+![Report 2 — per-row VF and transfers](figures/demo/05-rowwise-vf.png)
+
+**Figure 6. Report 5 — batched computation.** The corresponding AIV0 block has two VF executions, two input-copy events, and one output-copy event. The reduced vector load/store groups remain visible above PUSHQ.
+
+![Report 5 — batched computation](figures/demo/06-batched-vf.png)
 
 Next inspect the **RVECLD / RVECST** lanes. In report 2, the row groups repeatedly materialize vector results in UB and read intermediates back.
 In report 5, more intermediates remain inside the combined VF. On this exact
@@ -174,9 +193,13 @@ VF-end instructions around the reorganized computation. Show those individual
 events in Details; do not describe them as proof that all synchronization stalls
 or data dependencies disappeared.
 
-> **Screenshot 7 — vector detail before:** report 2, core 0 / AIV0, RVECLD and RVECST; highlight `RV_VLDI`, repeated `RV_VST` clusters, and the four `RV_SMEM_BAR` events.
->
-> **Screenshot 8 — vector detail after:** report 5, core 0 / AIV0, RVECLD and RVECST; highlight the shorter store sequence and the single `RV_SMEM_BAR`. Mention that `RV_VLDI` has no events in this version. Compare the event groups and their counts.
+**Figure 7. Report 2 — selected intermediate load.** RV_VLDI is selected on RVECLD_SLOT00. The bottom Details panel shows its exact name, pc 0x1370, instruction ID, and parameters; neighbouring load/store groups are visible above.
+
+![Report 2 — selected intermediate load](figures/demo/07-intermediate-loads.png)
+
+**Figure 8. Report 5 — selected memory barrier.** The remaining core-0 RV_SMEM_BAR is selected on RVECST_SLOT01. Details shows pc 0x10cc; the surrounding vector-store sequence is much smaller than in report 2.
+
+![Report 5 — selected memory barrier](figures/demo/08-batched-stores-and-barrier.png)
 
 As a short final view, in report 5 open **Memory load analysis → full-screen icon → Memory topology**, then click the **UB** block or the **UB** tab on the right.
 Connect the grouped transfers to the OUT→UB and UB→OUT paths and the touched UB
@@ -186,7 +209,9 @@ allocation or time occupancy, and does not establish bandwidth saturation. **Low
 the visual improvement here is the reduced fragmentation, not disappearance of
 those hints.
 
-> **Optional screenshot 9:** report 5, Memory topology with UB selected and the coverage grid visible on the right. Include the memory-type tabs so the selection is clear.
+**Figure 9. Report 5 — UB coverage.** Memory topology with the UB tab and AIV0 UB view selected. The coverage grid and Total / Used / Free values are visible on the right.
+
+![Report 5 — UB coverage](figures/demo/09-ub-memory-map.png)
 
 “We have followed the evidence through three changes: remove repeated traffic,
 use the available cores, and give each subcore a larger unit of work. The final
@@ -335,6 +360,16 @@ that viewer does not display the Performance analysis dock.
 Use the English viewer labels shown in the navigation section above. For IPC, select a
 VF event and inspect `exec_ipc`, `scalar_ipc`, and `load_store_ipc` in **Details →
 Parameter** when attached; there is no separate VF IPC chart in that viewer.
+
+**Figure 10. Report 5 — VF IPC in Details.** Selecting the batched-compute VF
+shows `scalar_ipc`, `exec_ipc`, and `load_store_ipc`. These values describe the
+selected call, not the arithmetic mean across all calls used by the Low VEC IPC hint.
+
+![Report 5 — VF IPC in Details](figures/demo/10-vf-ipc-details.png)
+
+Low VEC/MTE2 overlap remains in **all seven bundled runs**. The best bundled
+overlap is about **0.148** in report 4, still below the rule's **0.20** threshold;
+none of these figures demonstrates that hint disappearing.
 
 The report manifests contain kernel hints, VF IPC, and memory-heatmap data.
 They have no VF PMU counters, SIMD stall-sampling rows, or bubble rows; do not

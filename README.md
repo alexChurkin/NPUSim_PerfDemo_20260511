@@ -2,7 +2,7 @@
 
 **Presentation walkthrough:** [English](DEMO_STORY.md) · [Русский](DEMO_STORY_RU.md).
 Both versions cover the same four reports, 0 → 1 → 2 → 5, with narration,
-exact timeline comparisons, and places for screenshots.
+exact timeline comparisons, and real web-viewer screenshots.
 
 ## Download and extract
 
