@@ -42,15 +42,21 @@ To view reports in VS Code, download the `.vsix` from
 [the profiling extension releases](https://gitcode.com/opdevtools/plugin_release/releases/).
 In VS Code use **Extensions → … → Install from VSIX…**, then open/import the
 saved `.npu-rep` in the extension's profiling report viewer. It provides Timeline,
-Details, Performance hints, and memory/compute analysis. Alternatively:
+Details, Performance analysis (hints), and memory/compute analysis. Alternatively:
 
 ```bash
 code --install-extension /path/to/downloaded-extension.vsix
 ```
 
+In the web viewer, choose **en** for English labels. To open hints, click
+**Performance analysis** at the top right of **Report statistics**; messages
+appear in the bottom **Performance analysis** panel. For memory coverage, open
+**Memory load analysis → full-screen icon → Memory topology**, then click the
+**UB** block or its tab on the right (or select another memory type).
+
 The walkthroughs link the exact four reports to use. For a standalone timeline,
 load a `core_0/trace_core0.json` in Chromium at `chrome://tracing`; that viewer does
-not provide the Performance hints dock.
+not provide the Performance analysis panel.
 
 ## Requirements and exact versions
 

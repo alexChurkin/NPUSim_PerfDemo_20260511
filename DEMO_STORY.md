@@ -19,6 +19,31 @@ The times below are simulated kernel clocks, not the host time spent generating 
 | 2 — multi-core | 8,785 | Work distributed; Small Grid / Single-core hints disappear |
 | 5 — batch rows in UB | 7,744 | Fewer VF dispatches and transfers per subcore |
 
+## Navigation in the web viewer
+
+Open [the web viewer](https://profiling-report.vercel.app/), choose **en** in the
+top bar for the English labels used below, and use **Open file…** to load the
+saved `.npu-rep`.
+
+The **Timeline** occupies the main area. Expand or collapse lane groups with the
+arrow beside their names. Collapse the many SCALAR slot rows when they hide the
+MTE2, MTE3, PUSHQ, RVECLD, or RVECST groups needed for a comparison. Selecting an
+instruction opens its event details; this is where to inspect its parameters.
+
+**Hints:** in the right-hand **Report statistics** panel, click **Performance
+analysis** at the **top right**. The hint messages appear in the **bottom panel**,
+also titled **Performance analysis**. Read its **Hint Message** column; the
+**Source Line** and **Instruction Address** columns can say **Not specified** for
+kernel-level hints. The **Details** links next to Compute/Memory load analysis
+are metric-field views, not the button that opens the hints.
+
+**Memory:** in **Memory load analysis** on the right, expand the topology using
+its full-screen icon to open **Memory topology**. Click the **UB** memory block
+on the diagram, or select **UB** in the memory-type tabs on the right, to display
+the UB utilization/coverage grid. Select **L1**, **L0A**, **L0B**, or **L0C** for
+another memory type. Opening the topology alone is not the final step: select
+the memory type whose grid you want to show.
+
 ## First transition: repeated copies on the timeline → load gamma once
 
 **Before: report 0, Timeline → core 0 → AIV0; expand MTE2 and vector/VF lanes.**
@@ -62,7 +87,7 @@ and [1_preload_gamma.asc](NPUSim_Prof_Live_Demo/cann-samples/Samples/2_Performan
 
 ## Second transition: a single-core hint → distribute the independent rows
 
-**Before: report 1, Performance hints; then open the Timeline overview.**
+**Before: report 1, Report statistics → Performance analysis (top right); read the bottom panel, then return to the Timeline overview.**
 
 “We have cleaned up the transfers, but almost the entire processor is still idle.
 The Small Grid hint says **only 1 of 32 available cores is used**, and the
@@ -70,7 +95,7 @@ Single-core hint recommends distributing the work. The timeline supports that
 message: one vector context carries the execution. Rows are independent, so we
 can assign different rows to different vector subcores.”
 
-**After: report 2, Performance hints and the multicore Timeline overview.**
+**After: report 2, open the same bottom Performance analysis panel and compare it with the multicore Timeline overview.**
 
 “Now the timeline shows work across the cores. More importantly, the two messages
 that led us here — `small_grid_hint` and `general_single_core` — are **absent**.
@@ -149,14 +174,14 @@ or data dependencies disappeared.
 >
 > **Screenshot 8 — vector detail after:** report 5, core 0 / AIV0, RVECLD and RVECST; highlight the shorter store sequence and the single `RV_SMEM_BAR`. Mention that `RV_VLDI` has no events in this version. Compare the event groups and their counts.
 
-As a short final view, open **Memory load analysis → Full screen → UB** in report 5.
+As a short final view, in report 5 open **Memory load analysis → full-screen icon → Memory topology**, then click the **UB** block or the **UB** tab on the right.
 Connect the grouped transfers to the OUT→UB and UB→OUT paths and the touched UB
 addresses. The heatmap is address coverage, not time occupancy or proof of bandwidth
 saturation. Low IPC, low overlap, and some tail hints still exist in this report;
 the visual improvement here is the reduced fragmentation, not disappearance of
 those hints.
 
-> **Optional screenshot 9:** report 5, memory topology and UB address-coverage heatmap.
+> **Optional screenshot 9:** report 5, Memory topology with UB selected and the coverage grid visible on the right. Include the memory-type tabs so the selection is clear.
 
 “We have followed the evidence through three changes: remove repeated traffic,
 use the available cores, and give each subcore a larger unit of work. The final
@@ -292,11 +317,11 @@ For new runs, current paths are listed in `latest-measurements.json`.
 
 [RESULTS.html](NPUSim_Prof_Live_Demo/RESULTS.html) is the offline comparison and artifact index. A linked
 `core_0/trace_core0.json` can also be loaded in Chromium at `chrome://tracing`, but
-that viewer does not display the Performance hints dock.
+that viewer does not display the Performance analysis dock.
 
 ## Presenter notes
 
-The supported screens are **Timeline / Details**, **Performance hints**,
+The supported screens are **Timeline / Details**, **Performance analysis**,
 **Compute load analysis**, and **Memory load analysis**, as described in the
 feature reference `asc-vscode-draft/profiling_report_guide.md`. For IPC, select a
 VF event and inspect `exec_ipc`, `scalar_ipc`, and `load_store_ipc` in **Details →
