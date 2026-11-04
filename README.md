@@ -10,12 +10,13 @@ The complete package is **NPUSim_Prof_Live_Demo.tar.gz**. It contains all seven
 examples, their source trees, saved profiles, English and Russian walkthroughs,
 and Python 3.12.16 with NumPy 1.26.4. No separate update archive is needed.
 
-If using Git, retrieve the archive through LFS:
+With Git and Git LFS installed, retrieve the archive with explicit download progress:
 
 ```bash
-git clone https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git
+git lfs install
+GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/alexChurkin/NPUSim_PerfDemo_20260511.git
 cd NPUSim_PerfDemo_20260511
-git lfs pull
+git -c lfs.forceprogress=true lfs pull
 ```
 
 From the directory containing the archive and checksum:
@@ -52,7 +53,9 @@ In the web viewer, choose **en** for English labels. To open hints, click
 **Performance analysis** at the top right of **Report statistics**; messages
 appear in the bottom **Performance analysis** panel. For memory coverage, open
 **Memory load analysis → full-screen icon → Memory topology**, then click the
-**UB** block or its tab on the right (or select another memory type).
+**UB** block or its tab on the right. The saved RMSNorm profiles contain heatmap
+data only for UB; the other memory tabs are viewer capabilities, not additional
+recorded datasets in these examples.
 
 The walkthroughs link the exact four reports to use. For a standalone timeline,
 load a `core_0/trace_core0.json` in Chromium at `chrome://tracing`; that viewer does
@@ -60,10 +63,12 @@ not provide the Performance analysis panel.
 
 ## Requirements and exact versions
 
-The host needs Linux x86_64, CMake, make, a C/C++ compiler, and the matching CANN
+Viewing the saved reports does not require CANN or a rebuild. For building and
+recording, the host needs Linux x86_64, CMake, make, a C/C++ compiler, and the matching CANN
 installation with Ascend950/dav-3510 timing-simulator support. A physical NPU is
-unnecessary. Python and NumPy are bundled; the extracted demo needs no pip
-installation, Git, Git LFS, or network access.
+unnecessary. Python and NumPy are bundled; building and recording from the
+extracted package need no pip installation, Git, Git LFS, or network access once
+the host requirements are installed.
 
 | Component | Tested version / upstream base | Download or source |
 | --- | --- | --- |
@@ -127,8 +132,9 @@ RUN="$DEMO_ROOT/results/rms_norm_quant_5_ub_utilization/npusim_20261103215316_rm
 python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerated"
 ```
 
-The extra VF JSON in the original report comes from recording with `-g vf`;
-the standalone report command does not replace that export.
+The bundled standalone `report` command exports VF JSON by default. It analyzes
+the saved record without rerunning the kernel; the original reports used by the
+walkthrough remain available alongside the regenerated output.
 
 ## Files
 

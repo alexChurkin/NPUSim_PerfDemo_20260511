@@ -9,6 +9,7 @@ pattern: find a problem in the report, change the implementation, then check the
 next report for the expected change.
 
 We use the same RMSNorm + quantization workload, **128 × 256**, throughout.
+All numbers refer to the linked saved runs; a new run can produce different timings.
 All four numerical checks pass with the original absolute int8 tolerance of 1.
 The times below are simulated kernel clocks, not the host time spent generating a profile.
 
@@ -40,9 +41,10 @@ are metric-field views, not the button that opens the hints.
 **Memory:** in **Memory load analysis** on the right, expand the topology using
 its full-screen icon to open **Memory topology**. Click the **UB** memory block
 on the diagram, or select **UB** in the memory-type tabs on the right, to display
-the UB utilization/coverage grid. Select **L1**, **L0A**, **L0B**, or **L0C** for
-another memory type. Opening the topology alone is not the final step: select
-the memory type whose grid you want to show.
+the UB utilization/coverage grid. The viewer also offers **L1**, **L0A**, **L0B**,
+and **L0C** tabs, but these RMSNorm recordings contain heatmap data only for **UB**.
+For this demo select UB and check the view owner, such as **AIV0 UB**, before
+comparing grids; selecting another tab does not create missing data.
 
 ## First transition: repeated copies on the timeline → load gamma once
 
@@ -58,7 +60,8 @@ is redundant: `CopyInGamma()` sits next to `CopyInX(loop)` inside the row loop.�
 **After: report 1, the same core, lanes, and number of rows.** Include the beginning
 of the trace to show the one-time gamma preload, then compare a steady-state section.
 
-“We move gamma outside the loop. The recurring gamma transfer disappears: only
+“We move both the gamma load and its conversion to float32 outside the loop.
+The recurring gamma transfer disappears: only
 the changing input row needs to be loaded each time. The report confirms the
 change: input-transfer transactions fall from **256 to 129** — 128 input rows
 plus one gamma load — while output transfers remain at 128. We removed redundant
@@ -89,7 +92,8 @@ and [1_preload_gamma.asc](NPUSim_Prof_Live_Demo/cann-samples/Samples/2_Performan
 
 **Before: report 1, Report statistics → Performance analysis (top right); read the bottom panel, then return to the Timeline overview.**
 
-“We have cleaned up the transfers, but almost the entire processor is still idle.
+“We have cleaned up the transfers, but the available vector parallelism is still
+unused: all rows run on one vector context.
 The Small Grid hint says **only 1 of 32 available cores is used**, and the
 Single-core hint recommends distributing the work. The timeline supports that
 message: one vector context carries the execution. Rows are independent, so we
@@ -98,15 +102,15 @@ can assign different rows to different vector subcores.”
 **After: report 2, open the same bottom Performance analysis panel and compare it with the multicore Timeline overview.**
 
 “Now the timeline shows work across the cores. More importantly, the two messages
-that led us here — `small_grid_hint` and `general_single_core` — are **absent**.
+that led us here — **Small grid detected…** and **Single-core / under-launched kernel…** — are **absent** from **Hint Message**.
 Those rules still completed successfully; the problem that triggered them is
 no longer present. Kernel time falls from 111,498 to **8,785 clocks**, about
 **12.7× faster**.”
 
 There are 32 physical AI cores, each with AIV0 and AIV1. The summary's
 `ai_core_active=64` describes the 64 active vector contexts in this run, not
-64 physical AI cores. Other hints remain: Low SIMD IPC, low VEC/MTE2 overlap,
-and Tail Effect. We have fixed the launch parallelism; now we look inside a core.
+64 physical AI cores. Other messages remain: **Low VEC IPC…**,
+**Low VEC/MTE2 overlap…**, and **Tail effect…**. We have fixed the launch parallelism; now we look inside a core.
 
 > **Screenshot 3 — before:** report 1, Timeline overview plus Small Grid / Single-core hints. Show the full long row sequence; add a core-0 closeup showing the repeating three-VF row motif.
 >
@@ -137,14 +141,15 @@ us the granularity of the implementation, not just its final duration.”
 The same two rows now need only **two VF executions** on this subcore: gamma
 preparation and the batched computation. The VF sequence on the timeline is
 visibly simpler. Across the whole kernel, VF executions fall from **448 to 128**,
-and intermediate vector stores from **3,904 to 1,088**.”
+and actual `RV_VST` store instructions from **3,072 to 896**.”
 
 “Transfers are also grouped. On core 0 / AIV0, input transfers go from three to
 two — gamma plus two separate rows becomes gamma plus one batch — and output
 transfers go from two to one. In the architecture metrics this corresponds to
 **96 → 64 input transactions and 64 → 32 output transactions per AIV side**,
 aggregated across the 32 physical cores. Kernel time falls to **7,744 clocks**,
-another **11.8%** improvement.”
+another **11.8%** improvement. The same two rows are transferred using fewer
+DMA commands; this does not mean that their input/output payload is smaller.”
 
 This comparison combines MicroAPI computation, double buffering, and row batching;
 it does not isolate the contribution of each change. Reports 3 and 4 remain in
@@ -156,8 +161,7 @@ change necessarily accelerated this small workload.
 >
 > **Screenshot 6 — after:** report 5, core 0 / AIV0, the same lanes. Mark the gamma VF, the one batched-compute VF, and the single output transfer. Do not confuse fewer, larger work groups with elimination of the computation itself.
 
-Next inspect the **RVECLD / RVECST** lanes. In report 2, the
-row groups repeatedly spill vector results to UB and read intermediates back.
+Next inspect the **RVECLD / RVECST** lanes. In report 2, the row groups repeatedly materialize vector results in UB and read intermediates back.
 In report 5, more intermediates remain inside the combined VF. On this exact
 core/subcore, pure `RV_VST` events fall from **48 to 14**, `RV_VLD` from **40 to 30**,
 and all **10 `RV_VLDI` events disappear**. Search `RV_VLDI` in each report and
@@ -165,8 +169,8 @@ compare the small load islands with the much sparser store lane. This is the
 instruction-level evidence behind the combined-computation explanation.
 
 On the same RVECST lane, **four `RV_SMEM_BAR` events become one**, and **seven
-`RV_SEND` markers become two**. These are fewer internal memory-barrier and
-VF-completion markers around the reorganized computation. Show those individual
+`RV_SEND` markers become two**. These are fewer recorded memory-barrier and
+VF-end instructions around the reorganized computation. Show those individual
 events in Details; do not describe them as proof that all synchronization stalls
 or data dependencies disappeared.
 
@@ -176,8 +180,9 @@ or data dependencies disappeared.
 
 As a short final view, in report 5 open **Memory load analysis → full-screen icon → Memory topology**, then click the **UB** block or the **UB** tab on the right.
 Connect the grouped transfers to the OUT→UB and UB→OUT paths and the touched UB
-addresses. The heatmap is address coverage, not time occupancy or proof of bandwidth
-saturation. Low IPC, low overlap, and some tail hints still exist in this report;
+addresses. The grid marks cells touched by recorded accesses. **Used** is the
+touched-cell count multiplied by cell size; it is not a measurement of live tensor
+allocation or time occupancy, and does not establish bandwidth saturation. **Low VEC IPC…**, **Low VEC/MTE2 overlap…**, and some tail messages still exist in this report;
 the visual improvement here is the reduced fragmentation, not disappearance of
 those hints.
 
@@ -196,6 +201,9 @@ producer track: count execution events named exactly **`VF` on `AIV0_PUSHQ`**.
 For DMA, count **`MOV_SRC_TO_DST_ALIGNv2`**, not the initial `MOV_SPR_XN` setup.
 For vector stores, **`RV_VST`** is one mnemonic, whereas **RVECST** is the entire
 lane and also includes `RV_SEND`, `RV_SMEM_BAR`, and other instructions.
+For reports 2 → 5, the global RVECST lane total is 3,904 → 1,088; pure `RV_VST`
+is 3,072 → 896. These stores include gamma preparation and output writes, not
+only intermediate results. The per-context counts below refer to core 0 / AIV0.
 
 All counts here are **core 0 / AIV0**, not global totals:
 
@@ -239,20 +247,22 @@ the pattern. PCs above refer to the linked saved binaries and may change after r
 
 **Do not point at arbitrary whitespace and call it a stall.** These records have
 no dedicated BUBBLE events or explicit `WAIT_FLAG` events. They support showing
-fewer copies, spill/load islands, barriers, and dispatches, but not claiming that
+fewer copies, UB load/store groups, barriers, and dispatches, but not claiming that
 all waits vanished or that every empty interval has a known cause. The
 low-overlap hint still exists in report 5; do not use this pair to claim that
 copy/compute overlap became perfect.
 
-Viewer installation, the CANN download, and exact source revisions are in
-[README.md](README.md#requirements-and-exact-versions).
+[Viewer setup](README.md#view-the-saved-reports) and
+[CANN downloads / exact source revisions](README.md#requirements-and-exact-versions)
+are in README.
 
 ## Commands: prepare before the presentation
 
-The saved reports can be shown immediately. To reproduce the four stops:
+The saved reports can be shown immediately. Run the commands below from the
+directory containing the extracted demo; skip the first `cd` if already inside it:
 
 ```bash
-cd /home/lxchu/Projects/CANN/NPUSim_PerfDemo_20260511/NPUSim_Prof_Live_Demo
+cd NPUSim_Prof_Live_Demo
 
 # Build and record the four presentation examples. No menus or prompts.
 # The first two are slow single-core simulations; run them before the talk.
@@ -298,8 +308,9 @@ RUN="$DEMO_ROOT/results/rms_norm_quant_5_ub_utilization/npusim_20261103215316_rm
 python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerated"
 ```
 
-Keep the original report for this walkthrough: its extra VF JSON is produced by
-the recording's `-g vf`, not by the standalone report command.
+The bundled standalone `report` command enables VF JSON export by default.
+Regeneration analyzes the recorded execution; it does not rerun the kernel.
+The comparison above remains tied to the linked original reports.
 
 ## Files to open
 
@@ -321,9 +332,7 @@ that viewer does not display the Performance analysis dock.
 
 ## Presenter notes
 
-The supported screens are **Timeline / Details**, **Performance analysis**,
-**Compute load analysis**, and **Memory load analysis**, as described in the
-feature reference `asc-vscode-draft/profiling_report_guide.md`. For IPC, select a
+Use the English viewer labels shown in the navigation section above. For IPC, select a
 VF event and inspect `exec_ipc`, `scalar_ipc`, and `load_store_ipc` in **Details →
 Parameter** when attached; there is no separate VF IPC chart in that viewer.
 
