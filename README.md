@@ -33,7 +33,12 @@ If you are already reading this inside the extracted package, start below.
 Open **[RESULTS.html](NPUSim_Prof_Live_Demo/RESULTS.html)** in a browser for the offline comparison,
 artifact links, numerical checks, and detector findings. No simulation is needed.
 
-For `.npu-rep` reports, download the VS Code `.vsix` from
+You can open `.npu-rep` reports directly in the browser with the
+[web profiling report viewer](https://profiling-report.vercel.app/): open the site and select/import a saved
+`.npu-rep` file from the extracted demo. The web viewer is an alternative to
+installing the VS Code extension.
+
+To view reports in VS Code, download the `.vsix` from
 [the profiling extension releases](https://gitcode.com/opdevtools/plugin_release/releases/).
 In VS Code use **Extensions → … → Install from VSIX…**, then open/import the
 saved `.npu-rep` in the extension's profiling report viewer. It provides Timeline,

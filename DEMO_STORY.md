@@ -3,7 +3,8 @@
 [Русская версия](DEMO_STORY_RU.md) · [Setup and launch reference](README.md)
 
 **Four reports, 7–9 minutes: 0 → 1 → 2 → 5.** Open the saved `.npu-rep` files in the
-Ascend profiling report viewer before the talk. Each transition follows the same
+[web profiling report viewer](https://profiling-report.vercel.app/) or the VS Code profiling extension
+before the talk. Each transition follows the same
 pattern: find a problem in the report, change the implementation, then check the
 next report for the expected change.
 
@@ -277,7 +278,8 @@ the recording's `-g vf`, not by the standalone report command.
 
 ## Files to open
 
-Import the following `.npu-rep` files into the Ascend profiling report viewer.
+Open the following `.npu-rep` files in the [web viewer](https://profiling-report.vercel.app/)
+or in the VS Code profiling extension described in [README.md](README.md#view-the-saved-reports).
 These are the exact runs behind the numbers and screenshot instructions above.
 For new runs, current paths are listed in `latest-measurements.json`.
 
