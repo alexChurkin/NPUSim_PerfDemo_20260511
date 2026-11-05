@@ -142,8 +142,8 @@ page = '''<!doctype html><html lang="en"><meta charset="utf-8">
 <style>body{font:16px/1.5 system-ui,sans-serif;max-width:1250px;margin:40px auto;padding:0 24px;color:#17212b;background:#fafbfd}h1{line-height:1.2}table{border-collapse:collapse;width:100%;background:white}th,td{text-align:left;padding:13px;border-bottom:1px solid #d7dfe7;vertical-align:top}th{background:#e9eef4}a{color:#0756a1}code{background:#e9eef4;padding:2px 5px}h2{margin-top:36px}p{max-width:1050px}</style>
 <h1>NPUSim: all seven examples</h1>
 <p>RMSNorm + quantization · Ascend950 · 128 × 256 · timing simulation.</p>
-<p>Metrics and parallelism hints describe the collected cores; they do not establish whole-device utilization.
-The number of recorded timelines is listed per variant below. Exact settings for the packaged release
+<p>Variants 0–1 intentionally use one AIV. Variants 2–6 record all 32 AIV lanes
+as 16 physical core timelines (AIV0 and AIV1 per ID). Exact settings for the packaged release
 are in <a href="recording-manifest.json">recording provenance</a>;
 per-run paths and detected CANN builds are in <a href="latest-measurements.json">the measurement index</a>.</p>
 <p>These are saved results. You can read this page offline without running the simulator.</p>

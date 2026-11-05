@@ -66,11 +66,22 @@ def main():
         assert 'NPU SIM auto generate report succeeded!' in text, log
         databases = list((run / 'record').glob('*.db'))
         assert databases, f'Missing raw recording: {run}'
+        stage = int(variant[0])
+        expected_aiv = 1 if stage < 2 else 32
         for db in databases:
             with sqlite3.connect(db.resolve().as_uri() + '?mode=ro', uri=True) as conn:
                 assert conn.execute('PRAGMA quick_check').fetchone() == ('ok',), db
+                active_aiv = conn.execute('''
+                    SELECT COUNT(*) FROM (
+                        SELECT DISTINCT ExecInstrCoreId, CoreTypeId
+                        FROM ExecutedInstructions WHERE CoreTypeId IN (2, 3)
+                    )
+                ''').fetchone()[0]
+                assert active_aiv == expected_aiv, (db, active_aiv, expected_aiv)
         reports = [ROOT / p for p in item['artifacts']['archives']]
         assert len(reports) == 1 and item['artifacts']['vf'] and item['artifacts']['traces'], run
+        assert len(item['artifacts']['traces']) == (1 if stage < 2 else 16), run
+        assert item['summaries'][0]['data']['kernel_info']['ai_core_active'] == expected_aiv, run
         for report in reports:
             validate_rep(report.read_bytes())
         selected.append(Path(item['run']))
@@ -78,18 +89,21 @@ def main():
         records.append({
             'variant': item['variant'], 'run': item['run'],
             'console_log': item['console_log'], 'precision_ok': True,
-            'launch_core_cap': 1 if int(variant[0]) < 2 else 2,
+            'report_refresh_log': None if stage < 2 else f'logs/report_refresh_{stage}.log',
+            'launch_core_cap': expected_aiv,
+            'report_core_selection': '0' if stage < 2 else 'all',
+            'active_aiv': active_aiv,
             'kernel_info': item['summaries'][0]['data']['kernel_info'],
             'detections': item.get('detections', {}),
             'reports': [{'path': str(p.relative_to(ROOT)), 'sha256': digest(p)} for p in reports],
         })
-    manifest = {'schema_version': 1, 'recorded_on': '2026-11-05', 'cann_version': '9.3.0',
+    manifest = {'schema_version': 2, 'recorded_on': '2026-11-05', 'cann_version': '9.3.0',
                 'cann_build': BUILD, 'cann_internal_version': 'V100R001C13B046',
-                'shape': [128, 256], 'launch_core_cap': 2, 'report_cores': [0],
+                'shape': [128, 256], 'multi_core_launch_cap': 32,
+                'report_core_selection': {'0-1': '0', '2-6': 'all'},
                 'cpu_affinity_slots': 2, 'model_worker_threads': 2,
                 'rss_limit_mib': 12288, 'memory_reserve_mib': 1536,
-                'timeout_seconds': {'0': 3600, '1': 3600, '2': 900, '3': 3600,
-                                    '4': 3600, '5': 900, '6': 3600},
+                'timeout_seconds': {str(stage): 3600 for stage in range(7)},
                 'runs': records}
     (ROOT / 'recording-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     # Publish only this suite in the measurement index. Old local runs stay on disk.
@@ -117,7 +131,8 @@ def main():
         for run in selected:
             archive.add(ROOT / run, arcname=f'{ROOT.name}/{run}', filter=filter_entry)
         for log in sorted(logs | {Path('logs/build.log'), Path('logs/build.console.log'),
-                                  Path('logs/summary.log')}):
+                                  Path('logs/summary.log')} |
+                          {Path(f'logs/report_refresh_{stage}.log') for stage in range(2, 7)}):
             if (ROOT / log).is_file():
                 archive.add(ROOT / log, arcname=f'{ROOT.name}/{log}')
     with tarfile.open(temporary) as archive:

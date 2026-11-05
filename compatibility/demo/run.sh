@@ -17,10 +17,13 @@ for stage in "$@"; do
     timeout=900
     [[ $stage == 0 || $stage == 1 ]] && timeout=3600
     timeout=${DEMO_TIMEOUT_SECONDS:-$timeout}
+    report_cores=all
+    [[ $stage == 0 || $stage == 1 ]] && report_cores=0
+    report_cores=${REPORT_CORES:-$report_cores}
     printf "[%d/%d] %s — running; log: %s\n" "$current" "$total" "$name" "$log"
     if ! (
         set -x
-        DEMO_TIMEOUT_SECONDS="$timeout" python3 "$DEMO_ROOT/demo/limited_run.py" python3 -m npusim.main record "$exe" -s Ascend950 -g vf -n "${REPORT_CORES:-0}" -o "$RESULTS_DIR/$name"
+        DEMO_TIMEOUT_SECONDS="$timeout" python3 "$DEMO_ROOT/demo/limited_run.py" python3 -m npusim.main record "$exe" -s Ascend950 -g vf -n "$report_cores" -o "$RESULTS_DIR/$name"
     ) > "$log" 2>&1; then
         echo "FAILED: $name. Full log: $log" >&2
         tail -n 40 "$log" >&2

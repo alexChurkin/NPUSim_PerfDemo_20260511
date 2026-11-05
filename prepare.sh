@@ -43,3 +43,13 @@ for file in "$repo"/compatibility/demo/*.sh "$repo"/compatibility/demo/*.py; do
         mv "$replacement" "$target"
     fi
 done
+# Keep the V100 AIV lane count used by the Small Grid hint aligned with the
+# report's 32-lane capacity. The archive already includes this fix; the overlay
+# also applies it to packages extracted from earlier revisions.
+source_file="$repo/compatibility/npusim/small_grid_hint.py"
+target="$package/npu-simulator/npusim/prof/src/backend/hints/small_grid_hint.py"
+if ! cmp -s "$source_file" "$target"; then
+    replacement=$(mktemp "$target.tmp.XXXXXX")
+    cp -p "$source_file" "$replacement"
+    mv "$replacement" "$target"
+fi

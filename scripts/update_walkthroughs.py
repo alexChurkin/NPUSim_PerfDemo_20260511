@@ -41,6 +41,8 @@ def main():
     counts = {s: event_counts(i) for s, i in by_stage.items()}
     clocks = {s: m['kernel_info']['kernel_total_clocks'] for s, m in metrics.items()}
     vf = {s: m['simd_vf_metrics']['vf_total_executions'] for s, m in metrics.items()}
+    vf_per = {s: m['simd_vf_metrics']['vf_executions_per_core'] for s, m in metrics.items()}
+    active = {s: m['kernel_info']['ai_core_active'] for s, m in metrics.items()}
     source = 'cann-samples/Samples/2_Performance/rms_norm_quant_story/src/'
     patterns = [('AIV0_MTE2', 'MOV_SRC_TO_DST_ALIGNv2'),
                 ('AIV0_MTE3', 'MOV_SRC_TO_DST_ALIGNv2'), ('AIV0_PUSHQ', 'VF'),
@@ -51,10 +53,10 @@ def main():
     for lane, event in patterns:
         lane_table += f'| {lane} / `{event}` | ' + ' | '.join(str(counts[s][lane, event]) for s in (0, 1, 2, 5)) + ' |\n'
     for base, prefix in ((REPO, 'NPUSim_Prof_Live_Demo/'), (ROOT, '')):
-        table = '| Variant | Kernel clocks | VF executions | .npu-rep |\n| --- | ---: | ---: | --- |\n'
+        table = '| Variant | Kernel clocks | Active AIV | VF total | VF / AIV | .npu-rep |\n| --- | ---: | ---: | ---: | ---: | --- |\n'
         for s in range(7):
             i = by_stage[s]
-            table += f"| {i['variant'].removeprefix('rms_norm_quant_')} | {clocks[s]:,} | {vf[s]:,} | [Open]({prefix + i['artifacts']['archives'][0]}) |\n"
+            table += f"| {i['variant'].removeprefix('rms_norm_quant_')} | {clocks[s]:,} | {active[s]} | {vf[s]:,} | {vf_per[s]:g} | [Open]({prefix + i['artifacts']['archives'][0]}) |\n"
         diagnostics = '| Variant | Sync detector | Race detector |\n| --- | --- | --- |\n'
         for s in range(7):
             d = by_stage[s].get('detections', {})
@@ -72,12 +74,11 @@ November 5, 2026 with CANN **9.3.0 / V100R001C13B046**, build **2026110400032496
 The shape is **128 × 256**, the target is Ascend950/dav-3510, and all seven
 numerical checks pass with absolute int8 tolerance 1.
 
-Variants 0 and 1 launch one vector core; variants 2–6 use a launch cap of two.
-Reports collect **core 0 only**. All counts and clocks below describe that
-recorded subset, not the combined work across the chip. In particular,
-`ai_core_active=1` and Small Grid / Single-core hints in a filtered report do
-not prove that the launcher used only one core. Do not reuse the old claim that
-these hints disappear in report 2 or that all 32 physical cores were recorded.
+Variants 0 and 1 intentionally launch and record one vector core. Variants 2–6
+launch all **32 AIV lanes** and record with `--core-id all`. The database has
+16 physical core IDs, each with AIV0 and AIV1; the report has 16 per-core trace
+files and `ai_core_active=32`. The VF totals below span all active AIV lanes;
+the timeline event table further down is explicitly for core 0 / AIV0.
 
 {table}
 Kernel clocks measure simulated device execution in the collected report.
@@ -125,19 +126,18 @@ does not necessarily reduce the total number of VF calls.
 Sources: [0_naive.asc]({prefix + source}0_naive.asc) and
 [1_preload_gamma.asc]({prefix + source}1_preload_gamma.asc).
 
-## 1 → 2: distribute rows, while keeping the collection scope clear
+## 1 → 2: distribute rows across all vector cores
 
-“Rows are independent, so version 2 distributes them across the two launched
-vector cores. On the recorded context the long row sequence is shorter.
-This demonstrates the launch change through the source and per-context work,
-while the single-core report cannot certify utilization of the full device.”
+“Rows are independent, so version 2 distributes them across all 32 AIV lanes.
+The full-core report confirms the launch with `ai_core_active=32` and 16 physical
+core IDs, each containing AIV0 and AIV1. Inspect any lane to see its shorter
+row sequence.”
 
 Recorded output transfers change from
 **{counts[1]['AIV0_MTE3', 'MOV_SRC_TO_DST_ALIGNv2']} to {counts[2]['AIV0_MTE3', 'MOV_SRC_TO_DST_ALIGNv2']}**,
-and VF executions from **{vf[1]} to {vf[2]}**. Collected kernel clocks change
+and VF executions per AIV from **{vf_per[1]:g} to {vf_per[2]:g}**. Kernel clocks change
 from **{clocks[1]:,} to {clocks[2]:,}** ({clocks[1] / clocks[2]:.2f}×).
-Keep the under-launch messages visible and explain the core-0 collection scope
-instead of promising that they vanish.
+Use the per-core trace for event counts and the summary for whole-kernel totals.
 
 Source: [2_multi_core.asc]({prefix + source}2_multi_core.asc).
 
@@ -145,7 +145,7 @@ Source: [2_multi_core.asc]({prefix + source}2_multi_core.asc).
 
 “Version 2 has many separate row-level VF calls and DMA transfers. Version 5
 keeps more computation together and batches the rows in UB. On the same recorded
-context, VF executions fall from **{vf[2]} to {vf[5]}**. Expand PUSHQ, then compare
+context, VF executions per AIV fall from **{vf_per[2]:g} to {vf_per[5]:g}**. Expand PUSHQ, then compare
 the recurring MTE2/MTE3 transfers and the vector load/store groups.”
 
 Input-copy events change from **{counts[2]['AIV0_MTE2', 'MOV_SRC_TO_DST_ALIGNv2']}
@@ -161,9 +161,9 @@ Source: [5_ub_utilization.asc]({prefix + source}5_ub_utilization.asc).
 
 ## Measured timeline reference: core 0 / AIV0
 
-These counts come directly from the new Chrome traces, deduplicated by
+These counts come directly from the core-0 Chrome traces, deduplicated by
 instruction ID within a lane group. One DMA instruction can appear on multiple
-slot tracks: report 5 shows three MTE2 boxes but only two distinct copy instructions.
+slot tracks, so visible boxes are not necessarily distinct instructions.
 DMA counts use `MOV_SRC_TO_DST_ALIGNv2`, excluding `MOV_SPR_XN` setup. `RV_VST` is one mnemonic;
 the RVECST lane also contains barriers and end markers.
 
@@ -197,16 +197,17 @@ To regenerate report 5 from raw data without simulating again:
 cd NPUSim_Prof_Live_Demo
 source demo/env.sh
 RUN="$DEMO_ROOT/{by_stage[5]['run']}"
-python3 -m npusim.main report -e "$RUN/record" -n 0 -o "$RUN/report-regenerated"
+python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerated"
 ```
 
-`CANNSIM_COLLECT=all` selects categories, not cores. Default `REPORT_CORES=0`
-controls collection; `RMS_DEMO_CORES=2` controls the launch cap at build time.
+`CANNSIM_COLLECT=all` selects categories, not cores. `REPORT_CORES` defaults to
+`0` for variants 0–1 and `all` for 2–6; `RMS_DEMO_CORES=32` is the build-time
+launch cap for multi-core variants.
 
 ## Historical viewer screenshots
 
 The PNGs in [figures/demo](figures/demo/) are captures of the previous October 28
-CANN / 32-core suite. They illustrate the UI only; their timings, instruction
+CANN multi-core suite. They illustrate the UI only; their timings, instruction
 PCs, counts and hint lists are not evidence for the new recordings. The old raw
 profiles are excluded from the current archive. For the current values, import
 the linked November 5 `.npu-rep` files and use the tables above.
@@ -220,12 +221,11 @@ the linked November 5 `.npu-rep` files and use the tables above.
 Форма — **128 × 256**, цель — Ascend950/dav-3510. Все семь численных проверок
 пройдены с исходным допуском: абсолютная разница int8 не больше 1.
 
-Варианты 0 и 1 запускают одно векторное ядро; для 2–6 предел запуска — два.
-В отчёт собирается **только core 0**. Все числа ниже относятся к собранной
-части выполнения, а не к сумме по всему чипу. `ai_core_active=1` и сообщения
-Small Grid / Single-core в таком отчёте не доказывают запуск только одного ядра.
-Прежние утверждения об исчезновении этих хинтов в варианте 2 и о записи всех
-32 физических ядер к новой серии неприменимы.
+Варианты 0 и 1 намеренно запускают и записывают одно векторное ядро.
+Варианты 2–6 запускают все **32 дорожки AIV** и записываются с `--core-id all`.
+В базе 16 физических core ID, у каждого есть AIV0 и AIV1; в отчёте 16 трасс,
+а `ai_core_active=32`. Суммы VF ниже относятся ко всем активным AIV;
+таблица событий таймлайна ниже относится только к core 0 / AIV0.
 
 {table}
 Такты — время выполнения в модели устройства для собранного отчёта.
@@ -272,19 +272,18 @@ gamma и дальнейшие загрузки строк. Смотрим нач
 Исходники: [0_naive.asc]({prefix + source}0_naive.asc),
 [1_preload_gamma.asc]({prefix + source}1_preload_gamma.asc).
 
-## 1 → 2: распределить строки и помнить об области сбора
+## 1 → 2: распределить строки по всем векторным ядрам
 
-«Строки независимы, поэтому вариант 2 распределяет их между двумя запускаемыми
-векторными ядрами. В записанном контексте последовательность строк короче.
-Изменение подтверждают исходный код и объём работы на контекст; отчёт только
-по core 0 не позволяет подтвердить загрузку всего устройства».
+«Строки независимы, поэтому вариант 2 распределяет их по всем 32 дорожкам AIV.
+Полный отчёт подтверждает запуск: `ai_core_active=32` и 16 физических core ID,
+каждый с AIV0 и AIV1. На любой дорожке видно более короткую последовательность
+строк».
 
 Выходных копирований стало **{counts[2]['AIV0_MTE3', 'MOV_SRC_TO_DST_ALIGNv2']}
 вместо {counts[1]['AIV0_MTE3', 'MOV_SRC_TO_DST_ALIGNv2']}**,
-VF-вызовов — **{vf[2]} вместо {vf[1]}**.
-Такты в отчёте: **{clocks[1]:,} → {clocks[2]:,}** ({clocks[1] / clocks[2]:.2f}×).
-Показываем оставшиеся сообщения о недостаточном параллелизме и объясняем
-ограничение сбора вместо обещания, что эти сообщения исчезли.
+VF-вызовов на AIV — **{vf_per[2]:g} вместо {vf_per[1]:g}**.
+Такты: **{clocks[1]:,} → {clocks[2]:,}** ({clocks[1] / clocks[2]:.2f}×).
+Число событий смотрим по конкретной трассе, а сумму по всем ядрам — в сводке.
 
 Исходник: [2_multi_core.asc]({prefix + source}2_multi_core.asc).
 
@@ -292,7 +291,7 @@ VF-вызовов — **{vf[2]} вместо {vf[1]}**.
 
 «В варианте 2 много отдельных VF-вызовов и передач для каждой строки.
 В варианте 5 держим больше вычислений вместе и обрабатываем пачку строк в UB.
-На том же контексте VF-вызовов становится **{vf[5]} вместо {vf[2]}**.
+На том же контексте VF-вызовов на AIV становится **{vf_per[5]:g} вместо {vf_per[2]:g}**.
 Раскрываем PUSHQ, затем сравниваем MTE2/MTE3 и группы векторных загрузок/записей».
 
 Входные копирования: **{counts[2]['AIV0_MTE2', 'MOV_SRC_TO_DST_ALIGNv2']}
@@ -308,9 +307,9 @@ VF-вызовов — **{vf[2]} вместо {vf[1]}**.
 
 ## Справочная таблица таймлайна: core 0 / AIV0
 
-Числа посчитаны по новым Chrome traces с удалением повторов по `instr_id`
+Числа посчитаны по Chrome traces для core 0 с удалением повторов по `instr_id`
 внутри группы дорожек. Одна DMA-инструкция может отображаться на нескольких
-слотах: в отчёте 5 три прямоугольника MTE2 соответствуют двум инструкциям копирования.
+слотах, поэтому число прямоугольников не обязательно равно числу инструкций.
 Для DMA считаем `MOV_SRC_TO_DST_ALIGNv2`, исключая подготовку `MOV_SPR_XN`. `RV_VST` — отдельная
 инструкция, а дорожка RVECST также содержит барьеры и маркеры завершения VF.
 
@@ -345,16 +344,17 @@ RSS ограничен 12 ГиБ, резерв доступной памяти �
 cd NPUSim_Prof_Live_Demo
 source demo/env.sh
 RUN="$DEMO_ROOT/{by_stage[5]['run']}"
-python3 -m npusim.main report -e "$RUN/record" -n 0 -o "$RUN/report-regenerated"
+python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerated"
 ```
 
 `CANNSIM_COLLECT=all` выбирает категории, а не ядра.
-`REPORT_CORES=0` задаёт сбор, `RMS_DEMO_CORES=2` — предел запуска при сборке.
+`REPORT_CORES` по умолчанию равен `0` для вариантов 0–1 и `all` для 2–6;
+`RMS_DEMO_CORES=32` задаёт предел запуска при сборке многокорных вариантов.
 
 ## Исторические скриншоты просмотрщика
 
 PNG в [figures/demo](figures/demo/) сняты с прежней серии на CANN от 28 октября
-с записью 32 ядер. Они иллюстрируют интерфейс; их такты, PC, счётчики и списки
+с многокорной записью. Они иллюстрируют интерфейс; их такты, PC, счётчики и списки
 хинтов не подтверждают значения новой серии. Старые записи исключены из нового
 архива. Для текущих значений открываем `.npu-rep` от 5 ноября из таблицы выше.
 '''

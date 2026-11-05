@@ -158,13 +158,14 @@ bash start.sh --list          # print variant descriptions and exit
 No menus or prompts. Progress appears in the console; detailed commands and
 output go to `logs/`. Single-core variants 0 and 1 take many minutes each, so
 prepare recordings before the talk. The default shape is **128 × 256**.
-Each run checks the output with absolute int8 tolerance 1. New local builds launch
-at most **2 vector cores** (`RMS_DEMO_CORES=2`); reports collect **core 0** by default
-(`REPORT_CORES=0`). `CANNSIM_COLLECT=all` selects collection categories, not the
-number of cores. The current saved reports use these same launch and collection
-limits. Metrics and hints describe core 0; a Single-core hint in this filtered
-report does not establish that the launch used only one core. The old 32-core
-measurements and screenshots are not the measurements of this suite.
+Each run checks the output with absolute int8 tolerance 1. Variants 0 and 1
+intentionally launch and record one vector core. Variants 2–6 launch up to
+**32 AIV lanes** (`RMS_DEMO_CORES=32`) and record with `REPORT_CORES=all` by default.
+The 32 AIV lanes appear as 16 physical core IDs, each with AIV0 and AIV1;
+verify `ai_core_active=32` and both core types in the recorded database.
+`CANNSIM_COLLECT=all` selects collection categories, not the number of cores.
+The old October 28 screenshots are only UI illustrations; use the linked
+November 5 reports for current measurements.
 New runs have timestamped folders.
 
 Local recording uses two CPU affinity slots, two model worker threads and one
@@ -208,15 +209,15 @@ export CANNSIM_COLLECT=all
 export BIPROF_OPTS='-l debug --save_tmp_files --scalar-ipc --vec-ipc --simd-perf --memory-utilization -j 1'
 python3 "$DEMO_ROOT/demo/limited_run.py" python3 -m npusim.main record \
   "$BUILD_DIR/Samples/2_Performance/rms_norm_quant_story/rms_norm_quant_5_ub_utilization" \
-  -s Ascend950 -g vf -n 0 -o "$RESULTS_DIR/rms_norm_quant_5_ub_utilization"
+  -s Ascend950 -g vf -n all -o "$RESULTS_DIR/rms_norm_quant_5_ub_utilization"
 ```
 
 Regenerate a report from a saved record without running the simulator again:
 
 ```bash
 source demo/env.sh
-RUN="$DEMO_ROOT/results/rms_norm_quant_5_ub_utilization/npusim_20261105092000_rms_norm_quant_5_ub_utilization"
-python3 -m npusim.main report -e "$RUN/record" -n 0 -o "$RUN/report-regenerated"
+RUN="$DEMO_ROOT/results/rms_norm_quant_5_ub_utilization/npusim_20261105121436_rms_norm_quant_5_ub_utilization"
+python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerated"
 ```
 
 The bundled standalone `report` command exports VF JSON by default. It analyzes
