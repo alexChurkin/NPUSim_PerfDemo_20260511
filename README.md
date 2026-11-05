@@ -1,8 +1,39 @@
 # NPUSim profiling demo
 
+From a checkout, run the demo directly (Git LFS is optional):
+
+```bash
+bash start.sh 2 5             # download/unpack if needed, build, record profiles
+bash start.sh build           # build all seven variants only
+```
+
+Preparing a fresh checkout requires `curl`, `tar` and `sha256sum`. The archive
+download is pinned to the checked-out Git commit and verified against its checksum.
+
+The launcher checks the archive's SHA-256 before extraction and applies the
+tracked wrappers in `compatibility/demo/`. It selects the newest installed CANN
+by version and build timestamp, or honors an explicit `CANN_SETENV`.
+The complete build and numerical/profile checks of all seven variants passed on CANN
+**9.3.0**, build **20261104000324968** (November 4), on Linux x86_64.
+Other newer builds still need validation against their simulator/helper ABI.
+Changing CANN preserves the old build directory and configures a fresh one.
+On the tested host, variant 2 took about nine minutes with the two-core cap;
+variant 5 took about two and a half minutes. Full simulation includes host-side
+recording and report generation, so these times are not kernel timings.
+
+From a repository checkout, prepare the package without building or running it:
+
+```bash
+bash prepare.sh
+```
+
+This also updates launch wrappers in a previously extracted package. Run it
+after pulling repository updates. Existing saved reports remain available.
+
 **Presentation walkthrough:** [English](DEMO_STORY.md) · [Русский](DEMO_STORY_RU.md).
 Both versions cover the same four reports, 0 → 1 → 2 → 5, with narration,
-exact timeline comparisons, and real web-viewer screenshots.
+exact timeline comparisons from the new recordings. Existing viewer screenshots
+are explicitly historical and show the previous 32-core suite.
 
 ## Download and extract
 
@@ -18,6 +49,14 @@ GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/alexChurkin/NPUSim_PerfDemo_2
 cd NPUSim_PerfDemo_20260511
 git -c lfs.forceprogress=true lfs pull
 ```
+
+If `git lfs` is missing, install the Git LFS executable using your package manager
+(`sudo apt-get install git-lfs` on Ubuntu), then run `git lfs install --local`
+and `git lfs pull`. A 134-byte archive beginning with
+`version https://git-lfs.github.com/spec/v1` is an LFS pointer; it cannot be
+unpacked. `bash prepare.sh` downloads the payload directly from GitHub even
+without Git LFS. Downloads require network access.
+Git LFS is still needed when committing or pushing changes to the archive.
 
 From the directory containing the archive and checksum:
 
@@ -60,6 +99,8 @@ recorded datasets in these examples.
 The walkthroughs link the exact four reports to use. For a standalone timeline,
 load a `core_0/trace_core0.json` in Chromium at `chrome://tracing`; that viewer does
 not provide the Performance analysis panel.
+For a trace stored as `trace_core0.json.gz`, decompress a copy first with
+`gzip -dk trace_core0.json.gz`.
 
 ## Requirements and exact versions
 
@@ -72,22 +113,35 @@ the host requirements are installed.
 
 | Component | Tested version / upstream base | Download or source |
 | --- | --- | --- |
-| CANN | **9.3.0**, internal version `V100R001C13B036`, build `20261028000328247`; simulator/helper contract **7** | [Matching Huawei build](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master/20261028000328247/) · [CANN download portal](https://www.hiascend.com/developer/download/community/result?module=cann) |
+| CANN | **9.3.0**, internal version `V100R001C13B046`, build `20261104000324968` | [Matching Huawei build](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master/20261104000324968/) · [CANN download portal](https://www.hiascend.com/developer/download/community/result?module=cann) |
 | npu-simulator | `1185ddf016a0e3563c0d3af80305d7ea78c81fe9` | [Exact commit](https://gitcode.com/cann/npu-simulator/commit/1185ddf016a0e3563c0d3af80305d7ea78c81fe9) |
 | cann-samples | `5c6e28cc7fce6fbeb9b67befcde98a6a4dc492ed` | [Exact commit](https://gitcode.com/cann/cann-samples/commit/5c6e28cc7fce6fbeb9b67befcde98a6a4dc492ed) |
 
-The matching build contains
-`Ascend-cann-toolkit_9.3.0~weekly.20261028.01_linux-x86_64.run` and
-`Ascend-cann-950-ops_9.3.0~weekly.20261028.01_linux-x86_64.run`.
+Install the x86_64 CANN toolkit and 950 ops packages from the matching build.
 The Git hashes are upstream base revisions. The bundled sources include demo
 modifications: the 128 × 256 shape, offline build/launch wrappers, and the fix
 for empty RV_VBR register payloads. Use the bundled sources to reproduce the reports.
 
-CANN is auto-detected. If several installations exist, select the matching one:
+CANN is auto-detected, including when several installations exist. Existing
+checkouts can update their wrappers with `bash prepare.sh`; the new archive
+already includes them. To select a specific build:
 
 ```bash
 export CANN_SETENV=/actual/path/to/cann/bin/setenv.bash
 ```
+
+For the newer installation tested here:
+
+```bash
+CANN_SETENV=/usr/local/Ascend/20261104000324968/cann-9.3.0/x86_64-linux/bin/setenv.bash bash start.sh 2 5
+```
+
+This command works from either the repository root or the prepared package.
+All seven saved profiles in the current archive were recorded on November 5
+using the November 4 CANN build. The archive excludes the old recordings.
+[recording-manifest.json](NPUSim_Prof_Live_Demo/recording-manifest.json) contains
+the exact run paths, report hashes, launch/collection scope and guard settings.
+The bundled NPUSim sources work with this helper without an ABI patch.
 
 ## Build and run
 
@@ -107,28 +161,24 @@ prepare recordings before the talk. The default shape is **128 × 256**.
 Each run checks the output with absolute int8 tolerance 1. New local builds launch
 at most **2 vector cores** (`RMS_DEMO_CORES=2`); reports collect **core 0** by default
 (`REPORT_CORES=0`). `CANNSIM_COLLECT=all` selects collection categories, not the
-number of cores. Saved presentation reports above were recorded with 32 AI cores;
-new recordings with this cap have different timings and parallelism hints.
+number of cores. The current saved reports use these same launch and collection
+limits. Metrics and hints describe core 0; a Single-core hint in this filtered
+report does not establish that the launch used only one core. The old 32-core
+measurements and screenshots are not the measurements of this suite.
 New runs have timestamped folders.
 
 Local recording uses two CPU affinity slots, two model worker threads and one
 report worker. `demo/limited_run.py` monitors the entire subprocess tree, including
 new sessions, every 0.1 seconds. It kills that tree above 12288 MiB (12 GiB) aggregate RSS,
-below 1536 MiB available host memory, or after 900 seconds. These are monitored
+below 1536 MiB available host memory, or at the per-variant timeout: 3600 seconds
+for single-core variants 0 and 1, 900 seconds for variants 2–6. Set
+`DEMO_TIMEOUT_SECONDS` to override either default. These are monitored
 limits, not a kernel memory quota; brief overshoot is possible. Build parallelism
 defaults to two jobs (`JOBS=2`).
 
-The current WSL2 environment exposes about 7.5 GiB RAM through `/proc/meminfo`,
-although the physical PC has 16 GiB. With the current 12 GiB RSS cap, the
-**256 × 1024** trial was stopped by the free-memory reserve at 4429 MiB during
-model initialization, before kernel execution. See
-`logs/rms_norm_quant_6_binary_sum_20261104_115133.log` in the extracted workspace.
-No completed report or disappearing overlap warning is claimed for that trial.
-The 4096 × 8192 development build is not used by `start.sh`.
-
-To allocate 12 GiB to WSL2, add `memory=12GB` under `[wsl2]` in the Windows
-`%UserProfile%\.wslconfig`, save work in WSL, run `wsl --shutdown` in PowerShell,
-and reopen Ubuntu. The simulator RSS cap does not change the WSL2 VM allocation.
+The current recordings were made on Ubuntu 22.04 x86_64 with about 15 GiB of
+host RAM. The earlier 256 × 1024 WSL2 memory-limit experiment is not a completed
+profile in this archive. `start.sh` uses the 128 × 256 demo shape.
 
 For an isolated small-shape experiment (still subject to the memory guard):
 
@@ -139,8 +189,8 @@ RMS_DEMO_A=256 RMS_DEMO_R=1024 RMS_DEMO_CORES=2 bash start.sh 2 5 6
 ```
 
 Double buffering is introduced in **3 → 4**. The **2 → 5** comparison also changes
-the vector implementation and batches rows in UB. The saved 128 × 256 reports
-retain the Low VEC/MTE2 overlap warning in every variant. A convincing experiment
+the vector implementation and batches rows in UB. Check the recorded overlap
+values and emitted hints in each new report. A convincing overlap experiment
 must have multiple UB batches per core and measured overlap of at least 0.20;
 removing the warning by having too few instructions is not evidence of overlap.
 
@@ -165,8 +215,8 @@ Regenerate a report from a saved record without running the simulator again:
 
 ```bash
 source demo/env.sh
-RUN="$DEMO_ROOT/results/rms_norm_quant_5_ub_utilization/npusim_20261103215316_rms_norm_quant_5_ub_utilization"
-python3 -m npusim.main report -e "$RUN/record" -n all -o "$RUN/report-regenerated"
+RUN="$DEMO_ROOT/results/rms_norm_quant_5_ub_utilization/npusim_20261105092000_rms_norm_quant_5_ub_utilization"
+python3 -m npusim.main report -e "$RUN/record" -n 0 -o "$RUN/report-regenerated"
 ```
 
 The bundled standalone `report` command exports VF JSON by default. It analyzes
@@ -184,10 +234,12 @@ walkthrough remain available alongside the regenerated output.
 | `logs/` | Build and per-variant command/output logs |
 | `cann-samples/Samples/2_Performance/rms_norm_quant_story/src/` | Sources for variants 0 through 6 |
 | `versions.txt` | Build and source provenance |
+| `recording-manifest.json` | Current seven runs, settings and report SHA-256 hashes |
 
 A successful numerical check does not mean synchronization detectors found no
 issues. Their findings and collector limitations remain visible in `RESULTS.html`.
 
-Git stores one LFS archive and these three documents. The extracted directory is
+Git stores one LFS archive, documentation, and the preparation/compatibility
+scripts. The extracted directory is
 ignored to avoid duplicating the runtime and profiles in Git. Documentation
 links to extracted artifacts resolve after unpacking the archive.

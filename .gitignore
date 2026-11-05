@@ -1,2 +1,5 @@
 NPUSim_Prof_Live_Demo/
 *.tmp
+.tools/
+.demo-extract.*/
+__pycache__/
